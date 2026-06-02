@@ -27,8 +27,7 @@ function lerTemperatura() {
             return parseInt(match[1]) / 1000.0;
         }
     } catch (err) {
-        // retorna um valor aleatório, serve apenas para debbug
-        return 20 + Math.random() * 5; 
+        return (Math.random() * 180) - 55; 
     }
     return null;
 }

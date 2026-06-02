@@ -24,7 +24,7 @@ const graficoTemperatura = new Chart(ctx, {
     options: {
         responsive: true,
         maintainAspectRatio: false,
-        animation: false,
+        animation: true,
         scales: {
             x: {
                 display: true,
