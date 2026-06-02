@@ -1,0 +1,15 @@
+node_modules/
+
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+*.log
+
+*.csv
+
+.env
+
+.DS_Store
+Thumbs.db
+
+alarme.conf
