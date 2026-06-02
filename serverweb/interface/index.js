@@ -3,6 +3,7 @@ const socket = io();
 const LIMITE_PONTOS = 30;
 const dadosTempo = [];
 const dadosTemp = [];
+const historicoCompleto = [];
 
 const ctx = document.getElementById('meuGrafico').getContext('2d');
 const graficoTemperatura = new Chart(ctx, {
@@ -40,12 +41,15 @@ const graficoTemperatura = new Chart(ctx, {
 });
 
 socket.on('nova_temperatura', (dados) => {
-    document.getElementById('valorTemperatura').innerText = dados.valor.toFixed(2);
+    const tempFormatada = parseFloat(dados.valor.toFixed(1));
+    document.getElementById('valorTemperatura').innerText = tempFormatada;
+
+    historicoCompleto.push({ tempo: dados.tempo, valor: tempFormatada });
 
     dadosTempo.push(dados.tempo);
-    dadosTemp.push(dados.valor);
+    dadosTemp.push(tempFormatada);
 
-    // se passar do limite, remove o elemento mais antigo
+    //se passar do limite visual da tela, remove o elemento mais antigo
     if (dadosTempo.length > LIMITE_PONTOS) {
         dadosTempo.shift();
         dadosTemp.shift();
@@ -64,4 +68,30 @@ sliderAlarme.addEventListener('input', (evento) => {
 sliderAlarme.addEventListener('change', (evento) => {
     const novoLimite = evento.target.value;
     socket.emit('atualizar_alarme', novoLimite);
+});
+
+
+document.getElementById('btnBaixarCsv').addEventListener('click', () => {
+    
+    if (historicoCompleto.length === 0) {
+        alert("Aguarde. Nenhum dado de temperatura foi recebido ainda.");
+        return;
+    }
+
+    let conteudoCSV = "HORARIO,TEMPERATURA_C\n";
+
+    historicoCompleto.forEach(leitura => {
+        conteudoCSV += `${leitura.tempo},${leitura.valor}\n`;
+    });
+
+    const blob = new Blob([conteudoCSV], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+
+    const linkOculto = document.createElement("a");
+    linkOculto.setAttribute("href", url);
+    linkOculto.setAttribute("download", "Sessao_Monitoramento_BeagleBone.csv");
+    
+    document.body.appendChild(linkOculto);
+    linkOculto.click();
+    document.body.removeChild(linkOculto);
 });

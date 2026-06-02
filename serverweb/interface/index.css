@@ -32,3 +32,19 @@ h1 {
     height: 50vh;
     width: 100%;
 }
+
+.btn-download {
+    display: inline-block;
+    background-color: #27ae60;
+    color: white;
+    padding: 12px 24px;
+    text-decoration: none;
+    font-weight: bold;
+    border-radius: 5px;
+    margin-top: 10px;
+    transition: background-color 0.3s;
+}
+
+.btn-download:hover {
+    background-color: #219150;
+}
