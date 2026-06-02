@@ -2,7 +2,7 @@
   "name": "beaglebone-servidor-web",
   "version": "1.0.0",
   "description": "Servidor web em Node.js para interface de controle e monitoramento",
-  "main": "server.js",
+  "main": "src/server.js",
   "scripts": {
     "start": "node server.js"
   },
