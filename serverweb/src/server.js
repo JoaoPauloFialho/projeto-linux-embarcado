@@ -17,10 +17,10 @@ app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'interface', 'index.html'));
 });
 
-function lerTemperatura() {
+async function lerTemperatura() {
     try {
         const sensorPath = '/sys/bus/w1/devices/lembrar de substituir pelo id real do sensor da placa de xandão/w1_slave';
-        const data = fs.readFileSync(sensorPath, 'utf8');
+        const data = await fsPromises.readFile(sensorPath, 'utf8');
         
         const match = data.match(/t=(\d+)/);
         if (match) {
@@ -32,8 +32,8 @@ function lerTemperatura() {
     return null;
 }
 
-setInterval(() => {
-    const temp = lerTemperatura();
+setInterval(async () => {
+    const temp = await lerTemperatura();
     if (temp !== null) {
         const tempoAtual = new Date().toLocaleTimeString();
         io.emit('nova_temperatura', { tempo: tempoAtual, valor: temp });
