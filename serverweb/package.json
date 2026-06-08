@@ -4,7 +4,7 @@
   "description": "Servidor web em Node.js para interface de controle e monitoramento",
   "main": "src/server.js",
   "scripts": {
-    "start": "node server.js"
+    "start": "node src/server.js"
   },
   "dependencies": {
     "csv-writer": "^1.6.0",
