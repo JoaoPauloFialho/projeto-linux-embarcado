@@ -50,7 +50,7 @@ void rotina_de_limpeza(int sinal) {
 }
 
 // =================================================================
-// THREAD DO BUZZER (RODA EM PARALELO)
+// THREAD DO BUZZER
 // =================================================================
 void *thread_buzzer_func(void *arg) {
     unsigned int offset_buzzer = LINHA_BUZZER;
@@ -124,10 +124,8 @@ int main(void) {
 
     // 3. LOOP PRINCIPAL
     for(;;) {
-        // Alterna o estado do alarme
         alarme_ativo = !alarme_ativo;
         
-        // Lê o estado do botão apenas para imprimir na tela se está sendo pressionado
         int estado_botao = gpiod_line_request_get_value(request_botao, offset_botao);
 
         printf("Alarme ativo: %d | Botão Pressionado: %s\n", alarme_ativo, estado_botao == 0 ? "SIM" : "NAO");
