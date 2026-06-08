@@ -7,10 +7,6 @@
 #include <sys/inotify.h>
 #include <fcntl.h>
 
-// =================================================================
-// CONFIGURAÇÕES DE HARDWARE E ARQUIVOS
-// =================================================================
-
 // Configurações do Botão
 #define BOTAO_CHIP_PATH "/dev/gpiochip1"
 #define LINHA_BOTAO 2
@@ -22,25 +18,16 @@
 // Configuração do Inotify
 #define ALARME_CONF_PATH "/home/edujoao/projeto-linux-embarcado/firmware/alarme.conf"
 
-// =================================================================
-// VARIÁVEIS GLOBAIS
-// =================================================================
-
-// Recursos do botão
 struct gpiod_chip *chip_botao = NULL;
 struct gpiod_line_request *request_botao = NULL;
-
-// Recursos do buzzer
 struct gpiod_chip *chip_buzzer = NULL;
 struct gpiod_line_request *request_buzzer = NULL;
 
 // Variáveis globais de controle
 volatile int alarme_ativo = 0; 
 volatile float limite_temp = 0.0;
+volatile float temp_atual = 100.0; // Valor simulado para testes
 
-// =================================================================
-// ROTINA DE LIMPEZA (CTRL+C)
-// =================================================================
 void rotina_de_limpeza(int sinal) {
     printf("\n[Sinal recebido] Desligando hardware e liberando os pinos...\n");
     
@@ -54,10 +41,6 @@ void rotina_de_limpeza(int sinal) {
 
     exit(EXIT_SUCCESS);
 }
-
-// =================================================================
-// FUNÇÕES DO INOTIFY
-// =================================================================
 
 // Função para ler o arquivo e gravar na variável global
 void atualizar_limite_temp() {
@@ -111,9 +94,6 @@ void *thread_inotify_func(void *arg) {
     return NULL;
 }
 
-// =================================================================
-// THREAD DO BUZZER
-// =================================================================
 void *thread_buzzer_func(void *arg) {
     unsigned int offset_buzzer = LINHA_BUZZER;
 
@@ -138,8 +118,8 @@ void *thread_buzzer_func(void *arg) {
     gpiod_line_settings_free(config_buzzer);
 
     // Loop infinito da thread verificando a variável global
-    while (1) {
-        if (alarme_ativo == 1) {
+    for (;;) {
+        if (temp_atual >= limite_temp) {
             gpiod_line_request_set_value(request_buzzer, offset_buzzer, 1);
             usleep(200000); 
             gpiod_line_request_set_value(request_buzzer, offset_buzzer, 0);
@@ -152,9 +132,6 @@ void *thread_buzzer_func(void *arg) {
     return NULL;
 }
 
-// =================================================================
-// FUNÇÃO PRINCIPAL
-// =================================================================
 int main(void) {
     unsigned int offset_botao = LINHA_BOTAO;
 

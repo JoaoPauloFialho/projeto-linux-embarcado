@@ -14,6 +14,16 @@ const io = new Server(server);
 const PORT = 8080;
 const HOST = '0.0.0.0';
 
+const caminhoArquivoConf = path.join(__dirname, '..', '..', 'firmware', 'alarme.conf');
+
+try {
+    // Valor default do alarme  
+    fs.writeFileSync(caminhoArquivoConf, '30.0');
+    console.log("Inicialização: alarme.conf configurado para 30.0°C");
+} catch (err) {
+    console.error("Erro fatal ao inicializar o arquivo alarme.conf:", err);
+}
+
 app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'interface', 'index.html'));
 });
@@ -50,8 +60,6 @@ io.on('connection', (socket) => {
 
     socket.on('atualizar_alarme', (novoValor) => {
         console.log(`Recebido novo limite de alarme: ${novoValor}°C`);
-        
-        const caminhoArquivoConf = path.join(__dirname, '..', '..', 'firmware', 'alarme.conf');
         
         fs.writeFile(caminhoArquivoConf, novoValor.toString(), (err) => {
             if (err) {
