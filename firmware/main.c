@@ -4,9 +4,11 @@
 #include <signal.h>
 #include <pthread.h> 
 #include <gpiod.h>   
+#include <sys/inotify.h>
+#include <fcntl.h>
 
 // =================================================================
-// CONFIGURAÇÕES DE HARDWARE
+// CONFIGURAÇÕES DE HARDWARE E ARQUIVOS
 // =================================================================
 
 // Configurações do Botão
@@ -16,6 +18,9 @@
 // Configurações do Buzzer
 #define BUZZER_CHIP_PATH "/dev/gpiochip1"
 #define LINHA_BUZZER 3
+
+// Configuração do Inotify
+#define ALARME_CONF_PATH "/home/edujoao/projeto-linux-embarcado/firmware/alarme.conf"
 
 // =================================================================
 // VARIÁVEIS GLOBAIS
@@ -29,8 +34,9 @@ struct gpiod_line_request *request_botao = NULL;
 struct gpiod_chip *chip_buzzer = NULL;
 struct gpiod_line_request *request_buzzer = NULL;
 
-// 'volatile' obriga a thread a ler o valor real da memória sempre
+// Variáveis globais de controle
 volatile int alarme_ativo = 0; 
+volatile float limite_temp = 0.0;
 
 // =================================================================
 // ROTINA DE LIMPEZA (CTRL+C)
@@ -47,6 +53,62 @@ void rotina_de_limpeza(int sinal) {
     if (chip_buzzer) gpiod_chip_close(chip_buzzer);
 
     exit(EXIT_SUCCESS);
+}
+
+// =================================================================
+// FUNÇÕES DO INOTIFY
+// =================================================================
+
+// Função para ler o arquivo e gravar na variável global
+void atualizar_limite_temp() {
+    FILE *file = fopen(ALARME_CONF_PATH, "r");
+    if (file) {
+        float novo_limite;
+        // Lê o arquivo e tenta converter para float
+        if (fscanf(file, "%f", &novo_limite) == 1) {
+            limite_temp = novo_limite;
+            printf("[Inotify] alarme.conf alterado! Novo limite de temperatura: %.2f°C\n", limite_temp);
+        }
+        fclose(file);
+    } else {
+        perror("[Inotify] Erro ao abrir o arquivo alarme.conf para leitura");
+    }
+}
+
+// Thread dedicada para monitorar o arquivo sem bloquear o resto do programa
+void *thread_inotify_func(void *arg) {
+    int fd, wd;
+    // Buffer alinhado necessário para estruturar os eventos do inotify
+    char buffer[4096] __attribute__ ((aligned(__alignof__(struct inotify_event))));
+
+    fd = inotify_init();
+    if (fd < 0) {
+        perror("[Inotify] Falha ao inicializar");
+        pthread_exit(NULL);
+    }
+
+    // Monitora a modificação do arquivo (IN_MODIFY)
+    wd = inotify_add_watch(fd, ALARME_CONF_PATH, IN_MODIFY);
+    if (wd < 0) {
+        printf("[Inotify] Aviso: Não foi possível monitorar %s. Verifique se o arquivo existe.\n", ALARME_CONF_PATH);
+    }
+
+    // Lê o valor atual assim que a thread inicia
+    atualizar_limite_temp();
+
+    // Loop infinito aguardando modificações
+    while (1) {
+        // A função read() fica bloqueada aqui, consumindo 0% de CPU, até o arquivo mudar
+        int length = read(fd, buffer, sizeof(buffer));
+        if (length > 0) {
+            // Dispara a leitura se o evento ocorreu
+            atualizar_limite_temp();
+        }
+    }
+
+    inotify_rm_watch(fd, wd);
+    close(fd);
+    return NULL;
 }
 
 // =================================================================
@@ -77,7 +139,6 @@ void *thread_buzzer_func(void *arg) {
 
     // Loop infinito da thread verificando a variável global
     while (1) {
-        printf("[Thread Buzzer] Alarme ativo dentro da thread: %d\n", alarme_ativo);
         if (alarme_ativo == 1) {
             gpiod_line_request_set_value(request_buzzer, offset_buzzer, 1);
             usleep(200000); 
@@ -99,11 +160,15 @@ int main(void) {
 
     signal(SIGINT, rotina_de_limpeza);
 
-    // 1. INICIA A THREAD DO BUZZER
+    // 1. INICIA A THREAD DO INOTIFY (MONITORAMENTO DO ARQUIVO)
+    pthread_t thread_inotify;
+    pthread_create(&thread_inotify, NULL, thread_inotify_func, NULL);
+
+    // 2. INICIA A THREAD DO BUZZER
     pthread_t thread_buzzer;
     pthread_create(&thread_buzzer, NULL, thread_buzzer_func, NULL);
 
-    // 2. CONFIGURA O BOTÃO COMO ENTRADA
+    // 3. CONFIGURA O BOTÃO COMO ENTRADA
     chip_botao = gpiod_chip_open(BOTAO_CHIP_PATH);
     struct gpiod_line_settings *config_botao = gpiod_line_settings_new();
     gpiod_line_settings_set_direction(config_botao, GPIOD_LINE_DIRECTION_INPUT);
@@ -120,17 +185,14 @@ int main(void) {
     gpiod_line_config_free(line_cfg_botao);
     gpiod_line_settings_free(config_botao);
 
-    printf("Sistema iniciado! Testando thread em ciclo de 2 segundos...\n");
-
-    // 3. LOOP PRINCIPAL
+    printf("Sistema iniciado! Testando threads...\n");
     for(;;) {
-        alarme_ativo = !alarme_ativo;
+        alarme_ativo = !alarme_ativo; // Alterna o estado do alarme para testes
         
         int estado_botao = gpiod_line_request_get_value(request_botao, offset_botao);
 
-        printf("Alarme ativo: %d | Botão Pressionado: %s\n", alarme_ativo, estado_botao == 0 ? "SIM" : "NAO");
-
-        // Pausa a thread principal por 2 segundos
+        printf("Alarme ativo: %d | Botão Pressionado: %s | Limite Temp: %.2f°C\n", 
+               alarme_ativo, estado_botao == 0 ? "SIM" : "NAO", limite_temp);
         sleep(2); 
     }
     
