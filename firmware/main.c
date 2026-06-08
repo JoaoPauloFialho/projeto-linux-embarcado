@@ -187,7 +187,7 @@ int main(void) {
 
     printf("Sistema iniciado! Testando threads...\n");
     for(;;) {
-        alarme_ativo = !alarme_ativo; // Alterna o estado do alarme para testes
+        //alarme_ativo = !alarme_ativo; // Alterna o estado do alarme para testes
         
         int estado_botao = gpiod_line_request_get_value(request_botao, offset_botao);
 
