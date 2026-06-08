@@ -164,10 +164,7 @@ int main(void) {
 
     printf("Sistema iniciado! Testando threads...\n");
     for(;;) {
-        //alarme_ativo = !alarme_ativo; // Alterna o estado do alarme para testes
-        
         int estado_botao = gpiod_line_request_get_value(request_botao, offset_botao);
-
         printf("Alarme ativo: %d | Botão Pressionado: %s | Limite Temp: %.2f°C\n", 
                alarme_ativo, estado_botao == 0 ? "SIM" : "NAO", limite_temp);
         sleep(2); 
