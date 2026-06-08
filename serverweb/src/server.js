@@ -51,7 +51,7 @@ io.on('connection', (socket) => {
     socket.on('atualizar_alarme', (novoValor) => {
         console.log(`Recebido novo limite de alarme: ${novoValor}°C`);
         
-        const caminhoArquivoConf = path.join(__dirname, '..', 'firmware', 'alarme.conf');
+        const caminhoArquivoConf = path.join(__dirname, '..', '..', 'firmware', 'alarme.conf');
         
         fs.writeFile(caminhoArquivoConf, novoValor.toString(), (err) => {
             if (err) {
