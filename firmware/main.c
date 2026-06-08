@@ -77,7 +77,7 @@ void *thread_buzzer_func(void *arg) {
 
     // Loop infinito da thread verificando a variável global
     while (1) {
-        printf("[Thread Buzzer] Alarme ativo: %d\n", alarme_ativo);
+        printf("[Thread Buzzer] Alarme ativo dentro da thread: %d\n", alarme_ativo);
         if (alarme_ativo == 1) {
             gpiod_line_request_set_value(request_buzzer, offset_buzzer, 1);
             usleep(200000); 
