@@ -6,7 +6,7 @@
 #include <gpiod.h>   
 #include <sys/inotify.h>
 #include <fcntl.h>
-#include "oled_i2c.h" // Biblioteca do display OLED
+#include "oled_i2c.h"
 
 // Configurações do Botão
 #define BOTAO_CHIP_PATH "/dev/gpiochip1"
