@@ -9,6 +9,9 @@
 #include <sys/inotify.h>
 #include <fcntl.h>
 #include "oled_i2c.h"
+#include <string.h>
+#include <ifaddrs.h>
+#include <arpa/inet.h>
 
 // Configurações do Botão
 #define BOTAO_CHIP_PATH "/dev/gpiochip1"
@@ -17,9 +20,6 @@
 // Configurações do Buzzer
 #define BUZZER_CHIP_PATH "/dev/gpiochip1"
 #define LINHA_BUZZER 3
-
-//Nome do arquivo de temperatuda
-#define ARQUIVO_LOG "Log_temperatura.csv"
 
 //Nome do arquivo de temperatuda
 #define ARQUIVO_LOG "Log_temperatura.csv"
@@ -45,6 +45,11 @@ volatile int alarme_ativo = 0;
 volatile float limite_temp = 0.0;
 volatile float temp_atual = 30.0; // Valor simulado para testes
 
+// Variáveis globais para o controle de alternância da tela OLED
+volatile int tela_atual = 1; 
+volatile int limpar_tela = 0; 
+float sd_livre_mock = 14.5; 
+
 void rotina_de_limpeza(int sinal) {
     printf("\n[Sinal recebido] Desligando hardware e liberando os pinos...\n");
     
@@ -61,6 +66,26 @@ void rotina_de_limpeza(int sinal) {
     close_oled();
 
     exit(EXIT_SUCCESS);
+}
+
+// Função para buscar o IP da BeagleBone dinamicamente
+void obter_ip_atual(char *buffer_ip) {
+    struct ifaddrs *ifaddr, *ifa;
+    strcpy(buffer_ip, "Sem rede"); 
+
+    if (getifaddrs(&ifaddr) == -1) return;
+
+    for (ifa = ifaddr; ifa != NULL; ifa = ifa->ifa_next) {
+        if (ifa->ifa_addr == NULL) continue;
+        if (ifa->ifa_addr->sa_family == AF_INET) {
+            if (strcmp(ifa->ifa_name, "lo") != 0) { 
+                struct sockaddr_in *pAddr = (struct sockaddr_in *)ifa->ifa_addr;
+                strcpy(buffer_ip, inet_ntoa(pAddr->sin_addr));
+                break;
+            }
+        }
+    }
+    freeifaddrs(ifaddr);
 }
 
 // =================================================================
@@ -112,8 +137,9 @@ void *thread_sensor_func (void * arg){
         ds18b20_executar_fase_A();
         temp = ds18b20_executar_fase_B();
         if(temp == -1000){
-            return;
+            return NULL;
         }
+        temp_atual = temp; 
         salvar_em_csv(temp);
     }
 }
@@ -174,59 +200,6 @@ void *thread_inotify_func(void *arg) {
     return NULL;
 }
 
-// Função para ler o arquivo e gravar na variável global
-void atualizar_limite_temp() {
-    FILE *file = fopen(ALARME_CONF_PATH, "r");
-    if (file) {
-        float novo_limite;
-        // Lê o arquivo e tenta converter para float
-        if (fscanf(file, "%f", &novo_limite) == 1) {
-            limite_temp = novo_limite;
-            printf("[Inotify] alarme.conf alterado! Novo limite de temperatura: %.2f°C\n", limite_temp);
-        }
-        fclose(file);
-    } else {
-        perror("[Inotify] Erro ao abrir o arquivo alarme.conf para leitura");
-    }
-}
-
-// Thread dedicada para monitorar o arquivo sem bloquear o resto do programa
-void *thread_inotify_func(void *arg) {
-    int fd, wd;
-    // Buffer alinhado necessário para estruturar os eventos do inotify
-    char buffer[4096] __attribute__ ((aligned(__alignof__(struct inotify_event))));
-
-    fd = inotify_init();
-    if (fd < 0) {
-        perror("[Inotify] Falha ao inicializar");
-        pthread_exit(NULL);
-    }
-
-    // Monitora a modificação do arquivo (IN_MODIFY)
-    wd = inotify_add_watch(fd, ALARME_CONF_PATH, IN_MODIFY);
-    if (wd < 0) {
-        printf("[Inotify] Aviso: Não foi possível monitorar %s. Verifique se o arquivo existe.\n", ALARME_CONF_PATH);
-    }
-
-    // Lê o valor atual assim que a thread inicia
-    atualizar_limite_temp();
-
-    // Loop infinito aguardando modificações
-    for(;;) {
-        // A função read() fica bloqueada aqui, consumindo 0% de CPU, até o arquivo mudar
-        int length = read(fd, buffer, sizeof(buffer));
-        if (length > 0) {
-            // Dispara a leitura se o evento ocorreu
-            atualizar_limite_temp();
-        }
-    }
-
-    inotify_rm_watch(fd, wd);
-    close(fd);
-    return NULL;
-}
-
-
 void *thread_buzzer_func(void *arg) {
     unsigned int offset_buzzer = LINHA_BUZZER;
 
@@ -265,6 +238,32 @@ void *thread_buzzer_func(void *arg) {
     return NULL;
 }
 
+// Thread dedicada exclusivamente para leitura e debounce do botão
+void *thread_botao_func(void *arg) {
+    unsigned int offset_botao = LINHA_BOTAO;
+    int estado_anterior = 1;
+
+    for (;;) {
+        int estado_atual = gpiod_line_request_get_value(request_botao, offset_botao);
+
+        if (estado_atual == 0 && estado_anterior == 1) {
+            usleep(50000); // Debounce de 50ms
+            
+            if (gpiod_line_request_get_value(request_botao, offset_botao) == 0) {
+                tela_atual = (tela_atual == 1) ? 2 : 1; 
+                limpar_tela = 1; 
+                
+                while (gpiod_line_request_get_value(request_botao, offset_botao) == 0) {
+                    usleep(10000);
+                }
+            }
+        }
+        estado_anterior = estado_atual;
+        usleep(10000); 
+    }
+    return NULL;
+}
+
 int main(void) {
     unsigned int offset_botao = LINHA_BOTAO;
 
@@ -272,20 +271,12 @@ int main(void) {
 
     // INICIALIZA O DISPLAY OLED
     if (init_oled(I2C_BUS, I2C_ADDR) == 0) {
-        printf("Display OLED inicializado com sucesso.\n");
+        printf("Display OLED initialized com sucesso.\n");
         ssd1306_set_cursor(0, 0); 
         oled_print("SISTEMA INICIADO");
     } else {
         printf("Falha na inicializacao do OLED.\n");
     }
-
-    // 1. INICIA A THREAD DO INOTIFY (MONITORAMENTO DO ARQUIVO)
-    pthread_t thread_inotify;
-    pthread_create(&thread_inotify, NULL, thread_inotify_func, NULL);
-
-    // 2. INICIA A THREAD DO BUZZER
-    pthread_t thread_buzzer;
-    pthread_create(&thread_buzzer, NULL, thread_buzzer_func, NULL);
 
     // 3. CONFIGURA O BOTÃO COMO ENTRADA
     chip_botao = gpiod_chip_open(BOTAO_CHIP_PATH);
@@ -304,8 +295,16 @@ int main(void) {
     gpiod_line_config_free(line_cfg_botao);
     gpiod_line_settings_free(config_botao);
 
+    // INICIA AS THREADS DE SUPORTE
+    pthread_t thread_inotify, thread_buzzer, thread_botao_id, thread_sensor;
+    pthread_create(&thread_inotify, NULL, thread_inotify_func, NULL);
+    pthread_create(&thread_buzzer, NULL, thread_buzzer_func, NULL);
+    pthread_create(&thread_botao_id, NULL, thread_botao_func, NULL);
+    pthread_create(&thread_sensor, NULL, thread_sensor_func, NULL);
+
     char linha1[32];
     char linha2[32];
+    char ip_buffer[32];
 
     printf("Sistema iniciado! Testando threads...\n");
     for(;;) {
@@ -313,9 +312,21 @@ int main(void) {
         printf("Alarme ativo: %d | Botão Pressionado: %s | Limite Temp: %.2f°C\n", 
                alarme_ativo, estado_botao == 0 ? "SIM" : "NAO", limite_temp);
 
-        // Atualiza as strings do display
-        snprintf(linha1, sizeof(linha1), "Temp Atual: %.1f", temp_atual);
-        snprintf(linha2, sizeof(linha2), "Limite: %.1f", limite_temp);
+        // Recebe o sinal da thread do botão para resetar a tela
+        if (limpar_tela == 1) {
+            ssd1306_clear();
+            limpar_tela = 0;
+        }
+
+        if (tela_atual == 1) {
+            // Atualiza as strings do display
+            snprintf(linha1, sizeof(linha1), "Temp Atual: %.1f", temp_atual);
+            snprintf(linha2, sizeof(linha2), "Limite: %.1f", limite_temp);
+        } else {
+            obter_ip_atual(ip_buffer);
+            snprintf(linha1, sizeof(linha1), "IP: %s", ip_buffer);
+            snprintf(linha2, sizeof(linha2), "SD: %.1f GB free", sd_livre_mock);
+        }
 
         // Imprime no display OLED
         ssd1306_set_cursor(0, 0); 
