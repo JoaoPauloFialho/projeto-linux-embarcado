@@ -6,6 +6,7 @@
 #include <gpiod.h>   
 #include <sys/inotify.h>
 #include <fcntl.h>
+#include "oled_i2c.h" // Biblioteca do display OLED
 
 // Configurações do Botão
 #define BOTAO_CHIP_PATH "/dev/gpiochip1"
@@ -18,6 +19,10 @@
 // Configuração do Inotify
 #define ALARME_CONF_PATH "/home/edujoao/projeto-linux-embarcado/firmware/alarme.conf"
 
+// Configuração do Barramento I2C (OLED)
+#define I2C_BUS "/dev/i2c-2" 
+#define I2C_ADDR 0x3C 
+
 struct gpiod_chip *chip_botao = NULL;
 struct gpiod_line_request *request_botao = NULL;
 struct gpiod_chip *chip_buzzer = NULL;
@@ -26,7 +31,7 @@ struct gpiod_line_request *request_buzzer = NULL;
 // Variáveis globais de controle
 volatile int alarme_ativo = 0; 
 volatile float limite_temp = 0.0;
-volatile float temp_atual = 100.0; // Valor simulado para testes
+volatile float temp_atual = 30.0; // Valor simulado para testes
 
 void rotina_de_limpeza(int sinal) {
     printf("\n[Sinal recebido] Desligando hardware e liberando os pinos...\n");
@@ -38,6 +43,8 @@ void rotina_de_limpeza(int sinal) {
     // Libera os recursos do Buzzer
     if (request_buzzer) gpiod_line_request_release(request_buzzer);
     if (chip_buzzer) gpiod_chip_close(chip_buzzer);
+
+    close_oled();
 
     exit(EXIT_SUCCESS);
 }
@@ -80,7 +87,7 @@ void *thread_inotify_func(void *arg) {
     atualizar_limite_temp();
 
     // Loop infinito aguardando modificações
-    while (1) {
+    for(;;) {
         // A função read() fica bloqueada aqui, consumindo 0% de CPU, até o arquivo mudar
         int length = read(fd, buffer, sizeof(buffer));
         if (length > 0) {
@@ -137,6 +144,15 @@ int main(void) {
 
     signal(SIGINT, rotina_de_limpeza);
 
+    // INICIALIZA O DISPLAY OLED
+    if (init_oled(I2C_BUS, I2C_ADDR) == 0) {
+        printf("Display OLED inicializado com sucesso.\n");
+        ssd1306_set_cursor(0, 0); 
+        oled_print("SISTEMA INICIADO");
+    } else {
+        printf("Falha na inicializacao do OLED.\n");
+    }
+
     // 1. INICIA A THREAD DO INOTIFY (MONITORAMENTO DO ARQUIVO)
     pthread_t thread_inotify;
     pthread_create(&thread_inotify, NULL, thread_inotify_func, NULL);
@@ -162,11 +178,25 @@ int main(void) {
     gpiod_line_config_free(line_cfg_botao);
     gpiod_line_settings_free(config_botao);
 
+    char linha1[32];
+    char linha2[32];
+
     printf("Sistema iniciado! Testando threads...\n");
     for(;;) {
         int estado_botao = gpiod_line_request_get_value(request_botao, offset_botao);
         printf("Alarme ativo: %d | Botão Pressionado: %s | Limite Temp: %.2f°C\n", 
                alarme_ativo, estado_botao == 0 ? "SIM" : "NAO", limite_temp);
+
+        // Atualiza as strings do display
+        snprintf(linha1, sizeof(linha1), "Temp Atual: %.1f", temp_atual);
+        snprintf(linha2, sizeof(linha2), "Limite: %.1f", limite_temp);
+
+        // Imprime no display OLED
+        ssd1306_set_cursor(0, 0); 
+        oled_print(linha1);
+        ssd1306_set_cursor(0, 2); 
+        oled_print(linha2);
+
         sleep(2); 
     }
     
