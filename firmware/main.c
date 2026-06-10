@@ -140,6 +140,7 @@ void *thread_sensor_func (void * arg){
             return NULL;
         }
         temp_atual = temp; 
+        printf("[Sensor] Temperatura atual: %.2f°C\n", temp);
         salvar_em_csv(temp);
     }
 }
