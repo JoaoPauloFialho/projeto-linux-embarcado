@@ -111,62 +111,8 @@ void *thread_sensor_func (void * arg){
         ds18b20_executar_fase_A();
         temp = ds18b20_executar_fase_B();
         if(temp == -1000){
-            return;
-        }
-        salvar_em_csv(temp);
-    }
-}
-
-// =================================================================
-// THREAD DO SENSOR e save em csv
-// =================================================================
-
-void salvar_em_csv(float temperatura) {
-    FILE *arquivo;
-    int precisa_cabecalho = 0;
-
-    // 1. Verifica se o arquivo já existe. Se não existir (access retorna -1),
-    // marcamos a flag para escrever o cabeçalho do CSV na primeira linha.
-    if (access(ARQUIVO_LOG, F_OK) == -1) {
-        precisa_cabecalho = 1;
-    }
-
-    // 2. Abre o arquivo em modo "append" (anexar). 
-    // Se não existir, ele cria. Se existir, ele adiciona ao final.
-    arquivo = fopen(ARQUIVO_LOG, "a");
-    if (arquivo == NULL) {
-        printf("[ERRO] Nao foi possivel abrir/criar o arquivo %s\n", ARQUIVO_LOG);
-        return;
-    }
-
-    // 3. Escreve o cabeçalho apenas se o arquivo acabou de ser criado
-    if (precisa_cabecalho) {
-        fprintf(arquivo, "Data,Hora,Temperatura(C)\n");
-    }
-
-    // 4. Captura o tempo atual do sistema operacional
-    time_t t = time(NULL);
-    struct tm tm_info = *localtime(&t);
-
-    // 5. Formata a string e grava no arquivo
-    // Formato: DD/MM/YYYY,HH:MM:SS,Valor
-    fprintf(arquivo, "%02d/%02d/%04d,%02d:%02d:%02d,%.2f\n",
-            tm_info.tm_mday, tm_info.tm_mon + 1, tm_info.tm_year + 1900,
-            tm_info.tm_hour, tm_info.tm_min, tm_info.tm_sec,
-            temperatura);
-
-    // 6. Fecha o arquivo para liberar o buffer e garantir a gravação no disco
-    fclose(arquivo);
-}
-
-void *thread_sensor_func (void * arg){
-    float temp;
-    ds18b20_inicializar_gpios();
-    while (1){
-        ds18b20_executar_fase_A();
-        temp = ds18b20_executar_fase_B();
-        if(temp == -1000){
-            return;
+        perror("[Sensor] Falha no sensor");
+        pthread_exit(NULL);
         }
         salvar_em_csv(temp);
     }
@@ -175,58 +121,6 @@ void *thread_sensor_func (void * arg){
 // =================================================================
 // Buzzer e Inotify
 // =================================================================
-
-// Função para ler o arquivo e gravar na variável global
-void atualizar_limite_temp() {
-    FILE *file = fopen(ALARME_CONF_PATH, "r");
-    if (file) {
-        float novo_limite;
-        // Lê o arquivo e tenta converter para float
-        if (fscanf(file, "%f", &novo_limite) == 1) {
-            limite_temp = novo_limite;
-            printf("[Inotify] alarme.conf alterado! Novo limite de temperatura: %.2f°C\n", limite_temp);
-        }
-        fclose(file);
-    } else {
-        perror("[Inotify] Erro ao abrir o arquivo alarme.conf para leitura");
-    }
-}
-
-// Thread dedicada para monitorar o arquivo sem bloquear o resto do programa
-void *thread_inotify_func(void *arg) {
-    int fd, wd;
-    // Buffer alinhado necessário para estruturar os eventos do inotify
-    char buffer[4096] __attribute__ ((aligned(__alignof__(struct inotify_event))));
-
-    fd = inotify_init();
-    if (fd < 0) {
-        perror("[Inotify] Falha ao inicializar");
-        pthread_exit(NULL);
-    }
-
-    // Monitora a modificação do arquivo (IN_MODIFY)
-    wd = inotify_add_watch(fd, ALARME_CONF_PATH, IN_MODIFY);
-    if (wd < 0) {
-        printf("[Inotify] Aviso: Não foi possível monitorar %s. Verifique se o arquivo existe.\n", ALARME_CONF_PATH);
-    }
-
-    // Lê o valor atual assim que a thread inicia
-    atualizar_limite_temp();
-
-    // Loop infinito aguardando modificações
-    while (1) {
-        // A função read() fica bloqueada aqui, consumindo 0% de CPU, até o arquivo mudar
-        int length = read(fd, buffer, sizeof(buffer));
-        if (length > 0) {
-            // Dispara a leitura se o evento ocorreu
-            atualizar_limite_temp();
-        }
-    }
-
-    inotify_rm_watch(fd, wd);
-    close(fd);
-    return NULL;
-}
 
 // Função para ler o arquivo e gravar na variável global
 void atualizar_limite_temp() {
