@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <unistd.h>
 #include <stdint.h>
+#include <time.h>
 
 // =====================================================================
 // Configurações e Definições Privadas
@@ -26,18 +27,31 @@ static struct gpiod_line_request *request_mosfet = NULL;
 // Funções Auxiliares Privadas (Camada de Enlace 1-Wire)
 // =====================================================================
 
+static void sleep_us(long us){
+    static timespec start, current;
+    clock_gettime(CLOCK_MONOTONIC, &start);
+    long elapsed  = 0;
+
+    long target_ns = us * 1000;
+    while (elapsed < target_ns){
+        clock_gettime(CLOCK_MONOTONIC, &current);
+        elapsed = ((current.tv_sec - start.tv_sec) * 1000000000) + (current.tv_nsec - start.tc_nsec);
+    }
+    
+}
+
 static void onewire_escrever_bit(int bit) {
     gpiod_line_request_set_value(request_sensor, LINHA_SENSOR, 0); 
-    usleep(2); 
+    sleep_us(2); 
 
     if (bit) {
         gpiod_line_request_set_value(request_sensor, LINHA_SENSOR, 1); 
-        usleep(60); 
+        sleep_us(60); 
     } else {
-        usleep(60); 
+        sleep_us(60); 
         gpiod_line_request_set_value(request_sensor, LINHA_SENSOR, 1); 
     }
-    usleep(2); 
+    sleep_us(2); 
 }
 
 static void onewire_escrever_byte(uint8_t dado) {
@@ -50,11 +64,11 @@ static void onewire_escrever_byte(uint8_t dado) {
 static int onewire_ler_bit() {
     int bit = 0;
     gpiod_line_request_set_value(request_sensor, LINHA_SENSOR, 0);
-    usleep(1); 
+    sleep_us(1); 
     gpiod_line_request_set_value(request_sensor, LINHA_SENSOR, 1);
     
     bit = gpiod_line_request_get_value(request_sensor, LINHA_SENSOR);
-    usleep(60);
+    sleep_us(60);
     return bit;
 }
 
@@ -71,11 +85,11 @@ static uint8_t onewire_ler_byte() {
 static int onewire_reset() {
     int presence = 0;
     gpiod_line_request_set_value(request_sensor, LINHA_SENSOR, 0);
-    usleep(500); 
+    sleep_us(500); 
     gpiod_line_request_set_value(request_sensor, LINHA_SENSOR, 1);
-    usleep(70); 
+    sleep_us(70); 
     presence = gpiod_line_request_get_value(request_sensor, LINHA_SENSOR);
-    usleep(410); 
+    sleep_us(410); 
     return (presence == 0) ? 1 : 0; 
 }
 
@@ -143,7 +157,7 @@ void ds18b20_executar_fase_A(void) {
 
     // Strong Pull-up
     gpiod_line_request_set_value(request_mosfet, MOSFET_SENSOR, 0);
-    usleep(750000); // 750ms
+    sleep_us(750000); // 750ms
     gpiod_line_request_set_value(request_mosfet, MOSFET_SENSOR, 1);
 }
 
