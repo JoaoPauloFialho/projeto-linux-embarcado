@@ -28,14 +28,14 @@ static struct gpiod_line_request *request_mosfet = NULL;
 // =====================================================================
 
 static void sleep_us(long us){
-    static timespec start, current;
+    static struct timespec start, current;
     clock_gettime(CLOCK_MONOTONIC, &start);
     long elapsed  = 0;
 
     long target_ns = us * 1000;
     while (elapsed < target_ns){
         clock_gettime(CLOCK_MONOTONIC, &current);
-        elapsed = ((current.tv_sec - start.tv_sec) * 1000000000) + (current.tv_nsec - start.tc_nsec);
+        elapsed = ((current.tv_sec - start.tv_sec) * 1000000000) + (current.tv_nsec - start.tv_nsec);
     }
     
 }
