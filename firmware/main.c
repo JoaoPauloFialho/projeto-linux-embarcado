@@ -13,6 +13,7 @@
 #include <sys/statvfs.h>
 
 #include "ds18b20.h"
+#include "ssd1306_i2c.h"
 
 // Configurações do Botão
 #define BOTAO_CHIP_PATH "/dev/gpiochip1"
@@ -56,6 +57,7 @@ void rotina_de_limpeza(int sinal) {
     if (request_buzzer) gpiod_line_request_release(request_buzzer);
     if (chip_buzzer) gpiod_chip_close(chip_buzzer);
     
+    ssd1306_encerrar(); // Inserção: Limpa e desliga o display I2C no encerramento
     ds18b20_liberar_hardware();
 
     exit(EXIT_SUCCESS);
@@ -242,7 +244,8 @@ void *thread_buzzer_func(void *arg) {
 
     // Loop infinito da thread verificando a variável global
     for (;;) {
-        if (temp_atual >= limite_temp) {
+        // Inserção: Alarme soa se exceder o limite OU se o sensor for desconectado
+        if (temp_atual >= limite_temp || temp_atual <= -999.0f) {
             gpiod_line_request_set_value(request_buzzer, offset_buzzer, 1);
             usleep(200000); 
             gpiod_line_request_set_value(request_buzzer, offset_buzzer, 0);
@@ -260,6 +263,9 @@ int main(void) {
 
     signal(SIGINT, rotina_de_limpeza);
 
+    // Inserção: Inicializa o display no barramento I2C
+    ssd1306_inicializar("/dev/i2c-2");
+
     // 1. INICIA A THREAD DO INOTIFY (MONITORAMENTO DO ARQUIVO)
     pthread_t thread_inotify;
     pthread_create(&thread_inotify, NULL, thread_inotify_func, NULL);
@@ -268,7 +274,11 @@ int main(void) {
     pthread_t thread_buzzer;
     pthread_create(&thread_buzzer, NULL, thread_buzzer_func, NULL);
 
-    // 3. CONFIGURA O BOTÃO COMO ENTRADA
+    // 3. INICIA A THREAD DO SENSOR (Inserção: Adicionado para executar a leitura)
+    pthread_t thread_sensor;
+    pthread_create(&thread_sensor, NULL, thread_sensor_func, NULL);
+
+    // 4. CONFIGURA O BOTÃO COMO ENTRADA
     chip_botao = gpiod_chip_open(BOTAO_CHIP_PATH);
     struct gpiod_line_settings *config_botao = gpiod_line_settings_new();
     gpiod_line_settings_set_direction(config_botao, GPIOD_LINE_DIRECTION_INPUT);
@@ -288,13 +298,66 @@ int main(void) {
     printf("Sistema iniciado! Testando threads...\n");
     int estado_botao_anterior = 1;  
     
+    // Inserção: Variáveis necessárias para a lógica do display
+    int tela_atual = 0;             
+    float last_temp = -9999.0;      
+    float last_limit = -9999.0;     
+    int last_tela = -1;             
+    char ip_buffer[32];             
+    char sd_buffer[32];             
+    char linha_buf[32];             
+
     for(;;) {
         // Leitura do botão com detecção de borda (debounce)
         int estado_botao = gpiod_line_request_get_value(request_botao, offset_botao);
         if (estado_botao == 0 && estado_botao_anterior == 1) {
-            
+            tela_atual = !tela_atual;
         }
         estado_botao_anterior = estado_botao;
+
+        // Inserção: Bloco de lógica do display
+        if (tela_atual == 0) {
+            if (temp_atual != last_temp || limite_temp != last_limit || tela_atual != last_tela) {
+                ssd1306_limpar_buffer();
+                ssd1306_desenhar_texto(0, 0, "--- DATALOGGER ---");
+                
+                if (temp_atual <= -999.0f) {
+                    ssd1306_desenhar_texto(0, 3, "ALERTA CRITICO:");
+                    ssd1306_desenhar_texto(0, 5, ">> SENSOR OFF <<");
+                } else {
+                    snprintf(linha_buf, sizeof(linha_buf), "Temp:   %.1f C", temp_atual);
+                    ssd1306_desenhar_texto(0, 3, linha_buf);
+                    
+                    snprintf(linha_buf, sizeof(linha_buf), "Alarme: %.1f C", limite_temp);
+                    ssd1306_desenhar_texto(0, 5, linha_buf);
+                }
+                
+                ssd1306_atualizar_tela();
+                
+                last_temp = temp_atual;
+                last_limit = limite_temp;
+                last_tela = tela_atual;
+            }
+        } else {
+            if (tela_atual != last_tela) {
+                obter_ip_beaglebone(ip_buffer);
+                obter_espaco_sdcard(sd_buffer);
+                
+                ssd1306_limpar_buffer();
+                ssd1306_desenhar_texto(0, 0, "--- SISTEMA ---");
+                
+                snprintf(linha_buf, sizeof(linha_buf), "IP: %s", ip_buffer);
+                ssd1306_desenhar_texto(0, 3, linha_buf);
+                
+                snprintf(linha_buf, sizeof(linha_buf), "SD: %s", sd_buffer);
+                ssd1306_desenhar_texto(0, 5, linha_buf);
+                
+                ssd1306_atualizar_tela();
+                
+                last_tela = tela_atual;
+                last_temp = -9999.0; // Força nova renderização ao voltar para a Tela 1
+            }
+        }
 
         usleep(100000); 
     }
