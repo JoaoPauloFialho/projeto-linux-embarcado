@@ -6,7 +6,7 @@
 #include <sys/ioctl.h>
 #include <linux/i2c-dev.h>
 #include "ssd1306_i2c.h"
-#include "font8x8.h"
+#include "font8x8_oled.h"
 
 #define SSD1306_I2C_ADDR 0x3C
 
@@ -54,7 +54,10 @@ void ssd1306_desenhar_texto(int x, int linha_y, const char *texto) {
         unsigned char c = *texto;
         if (c < 32 || c > 127) c = '?';
         
-        const unsigned char *glyph = font8x8[c - 32];
+        // Pega a matriz da letra no formato vertical exato do I2C
+        const unsigned char *glyph = font8x8_oled[c - 32];
+        
+        // Copia as 8 colunas verticais da letra direto para a memória do display
         for (int i = 0; i < 8; i++) {
             fb[(linha_y * 128) + x + i] = glyph[i];
         }
