@@ -30,7 +30,7 @@
 #define MOSFET_SENSOR 4
 
 //Nome do arquivo de temperatuda
-#define ARQUIVO_LOG "Log_temperatura.csv"
+// #define ARQUIVO_LOG "Log_temperatura.csv"
 
 //Nome do arquivo de temperatuda
 #define ARQUIVO_LOG "/mnt/sdcard/Log_temperatura.csv"
