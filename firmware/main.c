@@ -151,7 +151,7 @@ void *thread_sensor_func(void *arg) {
 
     while (1) {
         temp_atual = ds18b20_ler_temperatura();
-        printf("temp_atual: %.2f C\n", temp_atual);
+        printf("tSensor thread: temp_atual=%.2f\n", temp_atual);
 
         if (temp_atual == -1000.0f) {
             fprintf(stderr, "[Sensor] Falha temporaria de leitura ou CRC. Ignorando amostra.\n");
@@ -248,6 +248,7 @@ void *thread_buzzer_func(void *arg) {
     // Loop infinito da thread verificando a variável global
     for (;;) {
         // Inserção: Alarme soa se exceder o limite OU se o sensor for desconectado
+        printf("Buzzer thread: temp_atual=%.2f, limite_temp=%.2f\n", temp_atual, limite_temp);
         if (temp_atual >= limite_temp || temp_atual <= -999.0f) {
             gpiod_line_request_set_value(request_buzzer, offset_buzzer, 1);
             usleep(200000); 
