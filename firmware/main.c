@@ -4,16 +4,10 @@
 #include <signal.h>
 #include <pthread.h> 
 #include <gpiod.h>
+#include "ds18b20.h"
 #include <time.h>
 #include <sys/inotify.h>
 #include <fcntl.h>
-#include <string.h>
-#include <ifaddrs.h>
-#include <arpa/inet.h>
-#include <sys/statvfs.h>
-
-#include "display_tft.h"
-#include "ds18b20.h"
 
 // Configurações do Botão
 #define BOTAO_CHIP_PATH "/dev/gpiochip1"
@@ -30,10 +24,10 @@
 #define MOSFET_SENSOR 4
 
 //Nome do arquivo de temperatuda
-// #define ARQUIVO_LOG "Log_temperatura.csv"
+#define ARQUIVO_LOG "Log_temperatura.csv"
 
 //Nome do arquivo de temperatuda
-#define ARQUIVO_LOG "/mnt/sdcard/Log_temperatura.csv"
+#define ARQUIVO_LOG "Log_temperatura.csv"
 
 // Configuração do Inotify
 #define ALARME_CONF_PATH "/home/edujoao/projeto-linux-embarcado/firmware/alarme.conf"
@@ -62,8 +56,7 @@ void rotina_de_limpeza(int sinal) {
     // Libera os recursos do Buzzer
     if (request_buzzer) gpiod_line_request_release(request_buzzer);
     if (chip_buzzer) gpiod_chip_close(chip_buzzer);
-    
-    tft_limpar_tela();
+
     ds18b20_liberar_hardware();
 
     exit(EXIT_SUCCESS);
@@ -137,19 +130,35 @@ void obter_espaco_sdcard(char *espaco_buffer) {
     else snprintf(espaco_buffer, 32, "%.1f MB", livres_mb);
 }
 
-void *thread_sensor_func (void * arg){
-    float temp;
-    ds18b20_inicializar_gpios();
-    while (1){
-        ds18b20_executar_fase_A();
-        temp = ds18b20_executar_fase_B();
-        if(temp == -1000){
-        perror("[Sensor] Falha no sensor");
+/**
+ * @brief Thread de monitoramento contínuo do sensor de temperatura.
+ * * Realiza a inicialização do DS18B20 e executa um loop de leitura com intervalo
+ * de 1 segundo. Leituras válidas são enviadas para armazenamento em CSV.
+ * Falhas temporárias (como desconexão ou erro de CRC) são ignoradas silenciosamente
+ * para manter a resiliência da execução contínua.
+ * * @param arg Parâmetros genéricos da thread (não utilizado).
+ * @return void* Sempre retorna NULL em caso de encerramento.
+ */
+void *thread_sensor_func(void *arg) {
+
+    if (ds18b20_inicializar() != 0) {
+        fprintf(stderr, "[Sensor] Falha fatal: Diretorio do barramento nao encontrado.\n");
         pthread_exit(NULL);
-        }
-        // temp_atual = temp;
-        salvar_em_csv(temp);
     }
+
+    while (1) {
+        temp_atual = ds18b20_ler_temperatura();
+
+        if (temp == -1000.0f) {
+            fprintf(stderr, "[Sensor] Falha temporaria de leitura ou CRC. Ignorando amostra.\n");
+        } else {
+            salvar_em_csv(temp);
+        }
+
+        sleep(1); 
+    }
+
+    return NULL;
 }
 
 // =================================================================
@@ -251,7 +260,6 @@ int main(void) {
     unsigned int offset_botao = LINHA_BOTAO;
 
     signal(SIGINT, rotina_de_limpeza);
-    tft_inicializar();
 
     // 1. INICIA A THREAD DO INOTIFY (MONITORAMENTO DO ARQUIVO)
     pthread_t thread_inotify;
@@ -279,42 +287,11 @@ int main(void) {
     gpiod_line_settings_free(config_botao);
 
     printf("Sistema iniciado! Testando threads...\n");
-    int tela_atual = 0;
-    int estado_botao_anterior = 1;  
-    float last_temp = -999.0;
-    float last_limit = -999.0;
-    int last_tela = -1;
-    char ip_buffer[32];
-    char sd_buffer[32];
     for(;;) {
-        // Leitura do botão com detecção de borda (debounce)
         int estado_botao = gpiod_line_request_get_value(request_botao, offset_botao);
-        if (estado_botao == 0 && estado_botao_anterior == 1) {
-            tela_atual = !tela_atual; 
-            tft_limpar_tela();
-        }
-        estado_botao_anterior = estado_botao;
-
-        // Lógica de Renderização do Display
-        if (tela_atual == 0) {
-            // TELA 1: Só atualiza os gráficos se o valor mudar (evita flicker)
-            if (temp_atual != last_temp || limite_temp != last_limit || tela_atual != last_tela) {
-                tft_exibir_tela_principal(temp_atual, limite_temp);
-                last_temp = temp_atual;
-                last_limit = limite_temp;
-            }
-        } else {
-            // TELA 2: Busca o IP e SD apenas ao mudar de tela
-            if (tela_atual != last_tela) {
-                obter_ip_beaglebone(ip_buffer);
-                obter_espaco_sdcard(sd_buffer);
-                tft_exibir_tela_rede(ip_buffer, sd_buffer);
-            }
-        }
-        
-        last_tela = tela_atual;
-
-        usleep(100000); 
+        printf("Alarme ativo: %d | Botão Pressionado: %s | Limite Temp: %.2f°C\n", 
+               alarme_ativo, estado_botao == 0 ? "SIM" : "NAO", limite_temp);
+        sleep(2); 
     }
     
     return EXIT_SUCCESS;
