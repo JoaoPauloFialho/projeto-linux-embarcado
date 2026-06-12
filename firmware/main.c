@@ -23,12 +23,6 @@
 #define BUZZER_CHIP_PATH "/dev/gpiochip1"
 #define LINHA_BUZZER 3
 
-//Configurações do Sensor
-#define SENSOR_CHIP_PATH "/dev/gpiochip1"
-#define LINHA_SENSOR 5
-#define MOSFET_CHIP_PATH "/dev/gpiochip1"
-#define MOSFET_SENSOR 4
-
 //Nome do arquivo de temperatuda
 // #define ARQUIVO_LOG "Log_temperatura.csv"
 
@@ -137,19 +131,35 @@ void obter_espaco_sdcard(char *espaco_buffer) {
     else snprintf(espaco_buffer, 32, "%.1f MB", livres_mb);
 }
 
-void *thread_sensor_func (void * arg){
-    float temp;
-    ds18b20_inicializar_gpios();
-    while (1){
-        ds18b20_executar_fase_A();
-        temp = ds18b20_executar_fase_B();
-        if(temp == -1000){
-        perror("[Sensor] Falha no sensor");
+/**
+ * @brief Thread de monitoramento contínuo do sensor de temperatura.
+ * * Realiza a inicialização do DS18B20 e executa um loop de leitura com intervalo
+ * de 1 segundo. Leituras válidas são enviadas para armazenamento em CSV.
+ * Falhas temporárias (como desconexão ou erro de CRC) são ignoradas silenciosamente
+ * para manter a resiliência da execução contínua.
+ * * @param arg Parâmetros genéricos da thread (não utilizado).
+ * @return void* Sempre retorna NULL em caso de encerramento.
+ */
+void *thread_sensor_func(void *arg) {
+
+    if (ds18b20_inicializar() != 0) {
+        fprintf(stderr, "[Sensor] Falha fatal: Diretorio do barramento nao encontrado.\n");
         pthread_exit(NULL);
-        }
-        // temp_atual = temp;
-        salvar_em_csv(temp);
     }
+
+    while (1) {
+        temp_atual = ds18b20_ler_temperatura();
+
+        if (temp == -1000.0f) {
+            fprintf(stderr, "[Sensor] Falha temporaria de leitura ou CRC. Ignorando amostra.\n");
+        } else {
+            salvar_em_csv(temp);
+        }
+
+        sleep(1); 
+    }
+
+    return NULL;
 }
 
 // =================================================================
