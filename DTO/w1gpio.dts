@@ -23,7 +23,7 @@
     fragment@1 {
         target = <&ocp>; /* Mudança crítica: Anexando ao barramento físico */
         __overlay__ {
-            onewire@0 {  /* Adicionado identificador de unidade */
+            onewire {  /* Adicionado identificador de unidade */
                 compatible = "w1-gpio";
                 pinctrl-names = "default";
                 pinctrl-0 = <&w1_pins>;
