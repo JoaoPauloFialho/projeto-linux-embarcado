@@ -261,7 +261,7 @@ int main(void) {
     unsigned int offset_botao = LINHA_BOTAO;
 
     signal(SIGINT, rotina_de_limpeza);
-    tft_inicializar();
+    //tft_inicializar();
 
     // 1. INICIA A THREAD DO INOTIFY (MONITORAMENTO DO ARQUIVO)
     pthread_t thread_inotify;
