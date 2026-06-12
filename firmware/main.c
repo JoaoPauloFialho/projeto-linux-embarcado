@@ -150,10 +150,10 @@ void *thread_sensor_func(void *arg) {
     while (1) {
         temp_atual = ds18b20_ler_temperatura();
 
-        if (temp == -1000.0f) {
+        if (temp_atual == -1000.0f) {
             fprintf(stderr, "[Sensor] Falha temporaria de leitura ou CRC. Ignorando amostra.\n");
         } else {
-            salvar_em_csv(temp);
+            salvar_em_csv(temp_atual);
         }
 
         sleep(1); 
