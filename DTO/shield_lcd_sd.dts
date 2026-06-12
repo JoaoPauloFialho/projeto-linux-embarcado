@@ -54,6 +54,8 @@
     fragment@1 {
         target = <&spi0>;
         __overlay__ {
+            #address-cells = <1>;
+            #size-cells = <0>;
             status = "okay";
             pinctrl-names = "default";
             pinctrl-0 = <&spi0_pins>;
