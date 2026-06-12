@@ -12,7 +12,6 @@
 #include <arpa/inet.h>
 #include <sys/statvfs.h>
 
-#include "display_tft.h"
 #include "ds18b20.h"
 
 // Configurações do Botão
@@ -57,7 +56,6 @@ void rotina_de_limpeza(int sinal) {
     if (request_buzzer) gpiod_line_request_release(request_buzzer);
     if (chip_buzzer) gpiod_chip_close(chip_buzzer);
     
-    // tft_limpar_tela();
     ds18b20_liberar_hardware();
 
     exit(EXIT_SUCCESS);
@@ -261,7 +259,6 @@ int main(void) {
     unsigned int offset_botao = LINHA_BOTAO;
 
     signal(SIGINT, rotina_de_limpeza);
-    tft_inicializar();
 
     // 1. INICIA A THREAD DO INOTIFY (MONITORAMENTO DO ARQUIVO)
     pthread_t thread_inotify;
@@ -289,40 +286,15 @@ int main(void) {
     gpiod_line_settings_free(config_botao);
 
     printf("Sistema iniciado! Testando threads...\n");
-    int tela_atual = 0;
     int estado_botao_anterior = 1;  
-    float last_temp = -999.0;
-    float last_limit = -999.0;
-    int last_tela = -1;
-    char ip_buffer[32];
-    char sd_buffer[32];
+    
     for(;;) {
         // Leitura do botão com detecção de borda (debounce)
         int estado_botao = gpiod_line_request_get_value(request_botao, offset_botao);
         if (estado_botao == 0 && estado_botao_anterior == 1) {
-            tela_atual = !tela_atual; 
-            // tft_limpar_tela();
+            
         }
         estado_botao_anterior = estado_botao;
-
-        // Lógica de Renderização do Display
-        if (tela_atual == 0) {
-            // TELA 1: Só atualiza os gráficos se o valor mudar (evita flicker)
-            if (temp_atual != last_temp || limite_temp != last_limit || tela_atual != last_tela) {
-                // tft_exibir_tela_principal(temp_atual, limite_temp);
-                last_temp = temp_atual;
-                last_limit = limite_temp;
-            }
-        } else {
-            // TELA 2: Busca o IP e SD apenas ao mudar de tela
-            if (tela_atual != last_tela) {
-                // obter_ip_beaglebone(ip_buffer);
-                // obter_espaco_sdcard(sd_buffer);
-                // tft_exibir_tela_rede(ip_buffer, sd_buffer);
-            }
-        }
-        
-        last_tela = tela_atual;
 
         usleep(100000); 
     }
