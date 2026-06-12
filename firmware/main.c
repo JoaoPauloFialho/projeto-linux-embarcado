@@ -4,10 +4,16 @@
 #include <signal.h>
 #include <pthread.h> 
 #include <gpiod.h>
-#include "ds18b20.h"
 #include <time.h>
 #include <sys/inotify.h>
 #include <fcntl.h>
+#include <string.h>
+#include <ifaddrs.h>
+#include <arpa/inet.h>
+#include <sys/statvfs.h>
+
+#include "display_tft.h"
+#include "ds18b20.h"
 
 // Configurações do Botão
 #define BOTAO_CHIP_PATH "/dev/gpiochip1"
@@ -27,7 +33,7 @@
 #define ARQUIVO_LOG "Log_temperatura.csv"
 
 //Nome do arquivo de temperatuda
-#define ARQUIVO_LOG "Log_temperatura.csv"
+#define ARQUIVO_LOG "/mnt/sdcard/Log_temperatura.csv"
 
 // Configuração do Inotify
 #define ALARME_CONF_PATH "/home/edujoao/projeto-linux-embarcado/firmware/alarme.conf"
@@ -56,7 +62,8 @@ void rotina_de_limpeza(int sinal) {
     // Libera os recursos do Buzzer
     if (request_buzzer) gpiod_line_request_release(request_buzzer);
     if (chip_buzzer) gpiod_chip_close(chip_buzzer);
-
+    
+    tft_limpar_tela();
     ds18b20_liberar_hardware();
 
     exit(EXIT_SUCCESS);
@@ -104,6 +111,32 @@ void salvar_em_csv(float temperatura) {
     fclose(arquivo);
 }
 
+void obter_ip_beaglebone(char *ip_buffer) {
+    struct ifaddrs *ifaddr, *ifa;
+    strcpy(ip_buffer, "Sem Rede"); 
+    if (getifaddrs(&ifaddr) == -1) return;
+    for (ifa = ifaddr; ifa != NULL; ifa = ifa->ifa_next) {
+        if (ifa->ifa_addr == NULL) continue;
+        if (ifa->ifa_addr->sa_family == AF_INET && strcmp(ifa->ifa_name, "lo") != 0) {
+            struct sockaddr_in *pAddr = (struct sockaddr_in *)ifa->ifa_addr;
+            strcpy(ip_buffer, inet_ntoa(pAddr->sin_addr));
+            break;
+        }
+    }
+    freeifaddrs(ifaddr);
+}
+
+void obter_espaco_sdcard(char *espaco_buffer) {
+    struct statvfs stat;
+    if (statvfs("/mnt/sdcard", &stat) != 0) {
+        strcpy(espaco_buffer, "SD Desconectado");
+        return;
+    }
+    double livres_mb = (double)(stat.f_bavail * stat.f_frsize) / (1024.0 * 1024.0);
+    if (livres_mb >= 1024.0) snprintf(espaco_buffer, 32, "%.2f GB", livres_mb / 1024.0);
+    else snprintf(espaco_buffer, 32, "%.1f MB", livres_mb);
+}
+
 void *thread_sensor_func (void * arg){
     float temp;
     ds18b20_inicializar_gpios();
@@ -114,6 +147,7 @@ void *thread_sensor_func (void * arg){
         perror("[Sensor] Falha no sensor");
         pthread_exit(NULL);
         }
+        // temp_atual = temp;
         salvar_em_csv(temp);
     }
 }
@@ -217,6 +251,7 @@ int main(void) {
     unsigned int offset_botao = LINHA_BOTAO;
 
     signal(SIGINT, rotina_de_limpeza);
+    tft_inicializar();
 
     // 1. INICIA A THREAD DO INOTIFY (MONITORAMENTO DO ARQUIVO)
     pthread_t thread_inotify;
@@ -244,11 +279,42 @@ int main(void) {
     gpiod_line_settings_free(config_botao);
 
     printf("Sistema iniciado! Testando threads...\n");
+    int tela_atual = 0;
+    int estado_botao_anterior = 1;  
+    float last_temp = -999.0;
+    float last_limit = -999.0;
+    int last_tela = -1;
+    char ip_buffer[32];
+    char sd_buffer[32];
     for(;;) {
+        // Leitura do botão com detecção de borda (debounce)
         int estado_botao = gpiod_line_request_get_value(request_botao, offset_botao);
-        printf("Alarme ativo: %d | Botão Pressionado: %s | Limite Temp: %.2f°C\n", 
-               alarme_ativo, estado_botao == 0 ? "SIM" : "NAO", limite_temp);
-        sleep(2); 
+        if (estado_botao == 0 && estado_botao_anterior == 1) {
+            tela_atual = !tela_atual; 
+            tft_limpar_tela();
+        }
+        estado_botao_anterior = estado_botao;
+
+        // Lógica de Renderização do Display
+        if (tela_atual == 0) {
+            // TELA 1: Só atualiza os gráficos se o valor mudar (evita flicker)
+            if (temp_atual != last_temp || limite_temp != last_limit || tela_atual != last_tela) {
+                tft_exibir_tela_principal(temp_atual, limite_temp);
+                last_temp = temp_atual;
+                last_limit = limite_temp;
+            }
+        } else {
+            // TELA 2: Busca o IP e SD apenas ao mudar de tela
+            if (tela_atual != last_tela) {
+                obter_ip_beaglebone(ip_buffer);
+                obter_espaco_sdcard(sd_buffer);
+                tft_exibir_tela_rede(ip_buffer, sd_buffer);
+            }
+        }
+        
+        last_tela = tela_atual;
+
+        usleep(100000); 
     }
     
     return EXIT_SUCCESS;

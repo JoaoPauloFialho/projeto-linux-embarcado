@@ -1,0 +1,102 @@
+/dts-v1/;
+/plugin/;
+
+/ {
+    compatible = "ti,beaglebone", "ti,beaglebone-black";
+
+    part-number = "bb-shield-lcd-sd";
+    version = "00A0";
+
+    /* ========================================================= */
+    /* FRAGMENTO 0: Pinmuxing (Configuração Física dos Pinos)    */
+    /* ========================================================= */
+    fragment@0 {
+        target = <&am33xx_pinmux>;
+        __overlay__ {
+
+            /* Pinos do Barramento SPI0 (Exclusivo para o Cartão SD do Shield) */
+            spi0_pins: pinmux_spi0_pins {
+                pinctrl-single,pins = <
+                    0x150 0x30 /* P9_22 (spi0_sclk):  RX Ativo | Pull-Up | Modo 0 */
+                    0x154 0x30 /* P9_21 (spi0_d0/miso): RX Ativo | Pull-Up | Modo 0 */
+                    0x158 0x10 /* P9_18 (spi0_d1/mosi): Saída    | Pull-Up | Modo 0 */
+                    0x15c 0x10 /* P9_17 (spi0_cs0):   Saída    | Pull-Up | Modo 0 (SD_CS) */
+                >;
+            };
+
+            /* Pinos de Controle e Dados do LCD Paralelo */
+            lcd_parallel_pins: pinmux_lcd_parallel_pins {
+                pinctrl-single,pins = <
+                    /* Pinos de Controle (Mapeados no conector P8) */
+                    0x078 0x07 /* P8_12 (gpio1_12): Saída | Modo 7 (LCD_RST) */
+                    0x07c 0x07 /* P8_11 (gpio1_13): Saída | Modo 7 (LCD_CS) */
+                    0x028 0x07 /* P8_14 (gpio0_26): Saída | Modo 7 (LCD_RS / DC) */
+                    0x03c 0x07 /* P8_15 (gpio1_15): Saída | Modo 7 (LCD_WR) */
+                    0x038 0x07 /* P8_16 (gpio1_14): Saída | Modo 7 (LCD_RD) */
+
+                    /* Barramento de Dados D0-D7 (Mapeados em pinos livres do P9) */
+                    0x070 0x07 /* P9_11 (gpio0_30): Saída | Modo 7 (LCD_D0) */
+                    0x074 0x07 /* P9_13 (gpio0_31): Saída | Modo 7 (LCD_D1) */
+                    0x040 0x07 /* P9_15 (gpio1_16): Saída | Modo 7 (LCD_D2) */
+                    0x04c 0x07 /* P9_16 (gpio1_19): Saída | Modo 7 (LCD_D3) */
+                    0x1a4 0x07 /* P9_27 (gpio3_19): Saída | Modo 7 (LCD_D4) */
+                    0x19c 0x07 /* P9_28 (gpio3_17): Saída | Modo 7 (LCD_D5) */
+                    0x1ac 0x07 /* P9_30 (gpio3_16): Saída | Modo 7 (LCD_D6) */
+                    0x1a8 0x07 /* P9_41 (gpio0_20): Saída | Modo 7 (LCD_D7) */
+                >;
+            };
+        };
+    };
+
+    /* ========================================================= */
+    /* FRAGMENTO 1: Instanciação do Cartão SD no Barramento SPI0 */
+    /* ========================================================= */
+    fragment@1 {
+        target = <&spi0>;
+        __overlay__ {
+            status = "okay";
+            pinctrl-names = "default";
+            pinctrl-0 = <&spi0_pins>;
+
+            sdcard@0 {
+                compatible = "mmc-spi-slot";
+                reg = <0>; /* Responde ao CS0 Nativo (P9.17) */
+                spi-max-frequency = <10000000>;
+                voltage-ranges = <3300 3300>; /* Parâmetro de faixa de tensão estável em 3.3V */
+            };
+        };
+    };
+
+    /* ========================================================= */
+    /* FRAGMENTO 2: Instanciação do LCD como Platform Device     */
+    /* ========================================================= */
+    fragment@2 {
+        target-path = "/";
+        __overlay__ {
+            tft_lcd {
+                compatible = "fbtft,generic";
+                pinctrl-names = "default";
+                pinctrl-0 = <&lcd_parallel_pins>;
+                status = "okay";
+
+                /* Configuração do Driver para Modo Paralelo de 8 bits */
+                buswidth = <8>;
+                reset-gpios = <&gpio1 12 0>;  /* P8.12 */
+                cs-gpios    = <&gpio1 13 0>;  /* P8.11 */
+                dc-gpios    = <&gpio0 26 0>;  /* P8.14 */
+                wr-gpios    = <&gpio1 15 0>;  /* P8.15 */
+                rd-gpios    = <&gpio1 14 0>;  /* P8.16 */
+
+                /* Mapeamento ordenado dos pinos de dados D0 até D7 */
+                db-gpios = <&gpio0 30 0>,  /* P9.11 -> D0 */
+                           <&gpio0 31 0>,  /* P9.13 -> D1 */
+                           <&gpio1 16 0>,  /* P9.15 -> D2 */
+                           <&gpio1 19 0>,  /* P9.16 -> D3 */
+                           <&gpio3 19 0>,  /* P9.27 -> D4 */
+                           <&gpio3 17 0>,  /* P9.28 -> D5 */
+                           <&gpio3 16 0>,  /* P9.30 -> D6 */
+                           <&gpio0 20 0>;  /* P9.41 -> D7 */
+            };
+        };
+    };
+};
