@@ -101,7 +101,9 @@ void salvar_em_csv(float temperatura) {
             tm_info.tm_hour, tm_info.tm_min, tm_info.tm_sec,
             temperatura);
 
-    // 6. Fecha o arquivo para liberar o buffer e garantir a gravação no disco
+    // 6. Força o Linux a ejetar a RAM e gravar fisicamente no disco via SPI
+    fflush(arquivo);
+    fsync(fileno(arquivo));
     fclose(arquivo);
 }
 

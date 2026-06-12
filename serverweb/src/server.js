@@ -30,7 +30,7 @@ app.get('/', (req, res) => {
 
 async function lerTemperatura() {
     try {
-        const sensorPath = '/sys/bus/w1/devices/lembrar de substituir pelo id real do sensor da placa de xandão/w1_slave';
+        const sensorPath = '/sys/bus/w1/devices/28-000000b9f662/w1_slave';
         const data = await fsPromises.readFile(sensorPath, 'utf8');
         
         const match = data.match(/t=(\d+)/);
@@ -38,16 +38,23 @@ async function lerTemperatura() {
             return parseInt(match[1]) / 1000.0;
         }
     } catch (err) {
-        return (Math.random() * 180) - 55; 
+        return null; 
     }
     return null;
 }
 
 setInterval(async () => {
     const temp = await lerTemperatura();
+    const tempoAtual = new Date().toLocaleTimeString();
+
     if (temp !== null) {
-        const tempoAtual = new Date().toLocaleTimeString();
+        // Hardware OK: Envia a temperatura normal
         io.emit('nova_temperatura', { tempo: tempoAtual, valor: temp });
+    } else {
+        // Hardware Falhou: Dispara o alerta crítico para a rede!
+        io.emit('erro_sensor', { 
+            mensagem: "ALERTA CRÍTICO: Sensor de Temperatura Desconectado!" 
+        });
     }
 }, 1000);
 

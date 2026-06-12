@@ -40,9 +40,24 @@ const graficoTemperatura = new Chart(ctx, {
     }
 });
 
+// Elementos de alerta no HTML
+const divAlerta = document.getElementById('alertaErro');
+const spanMensagemErro = document.getElementById('mensagemErro');
+const displayTemperatura = document.getElementById('valorTemperatura');
+
+// INSERÇÃO: Escuta o evento de falha crítica do servidor
+socket.on('erro_sensor', (dados) => {
+    spanMensagemErro.innerText = dados.mensagem;
+    divAlerta.style.display = 'block';
+    displayTemperatura.innerText = "OFF";
+});
+
 socket.on('nova_temperatura', (dados) => {
+    // INSERÇÃO: Oculta o alerta se o sensor for reconectado e voltar a funcionar
+    divAlerta.style.display = 'none';
+
     const tempFormatada = parseFloat(dados.valor.toFixed(1));
-    document.getElementById('valorTemperatura').innerText = tempFormatada;
+    displayTemperatura.innerText = tempFormatada;
 
     historicoCompleto.push({ tempo: dados.tempo, valor: tempFormatada });
 
