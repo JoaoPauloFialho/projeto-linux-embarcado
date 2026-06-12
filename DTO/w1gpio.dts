@@ -3,33 +3,28 @@
 
 / {
     compatible = "ti,beaglebone", "ti,beaglebone-black";
-
-    part-number = "bb-w1-p89";
+    part-number = "BB-W1-P8_9";
     version = "00A0";
 
-    /* Fragmento 0: Configuração de hardware do pino P8_9 (Mantido igual) */
     fragment@0 {
         target = <&am33xx_pinmux>;
         __overlay__ {
             w1_pins: pinmux_w1_pins {
                 pinctrl-single,pins = <
-                    0x09c 0x37
+                    0x09C 0x37
                 >;
             };
         };
     };
 
-    /* Fragmento 1: Instanciação do driver w1-gpio anexado ao OCP */
     fragment@1 {
-        target = <&ocp>; /* Mudança crítica: Anexando ao barramento físico */
+        target = <&ocp>;
         __overlay__ {
-            onewire {  /* Adicionado identificador de unidade */
+            onewire {
                 compatible = "w1-gpio";
                 pinctrl-names = "default";
                 pinctrl-0 = <&w1_pins>;
-                
-                gpios = <&gpio2 5 0>; 
-                
+                gpios = <&gpio2 5 0>;
                 status = "okay";
             };
         };
