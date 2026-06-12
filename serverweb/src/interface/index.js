@@ -13,8 +13,8 @@ const graficoTemperatura = new Chart(ctx, {
         datasets: [{
             label: 'Temperatura (°C)',
             data: dadosTemp,
-            borderColor: '#e74c3c',
-            backgroundColor: 'rgba(231, 76, 60, 0.2)',
+            borderColor: '#ff6b6b',
+            backgroundColor: 'rgba(255, 107, 107, 0.2)',
             borderWidth: 2,
             pointRadius: 2,
             tension: 0.4,
@@ -25,14 +25,19 @@ const graficoTemperatura = new Chart(ctx, {
         responsive: true,
         maintainAspectRatio: false,
         animation: true,
+        color: '#e0e0e0', // Cor da legenda adaptada para o tema escuro
         scales: {
             x: {
                 display: true,
-                title: { display: true, text: 'Horário' }
+                title: { display: true, text: 'Horário', color: '#e0e0e0' },
+                ticks: { color: '#aaaaaa' },
+                grid: { color: '#333333' } // Grade escura para não ofuscar a visão
             },
             y: {
                 display: true,
-                title: { display: true, text: 'Graus Celsius' },
+                title: { display: true, text: 'Graus Celsius', color: '#e0e0e0' },
+                ticks: { color: '#aaaaaa' },
+                grid: { color: '#333333' },
                 suggestedMin: 15,
                 suggestedMax: 35
             }
@@ -45,7 +50,7 @@ const divAlerta = document.getElementById('alertaErro');
 const spanMensagemErro = document.getElementById('mensagemErro');
 const displayTemperatura = document.getElementById('valorTemperatura');
 
-// INSERÇÃO: Escuta o evento de falha crítica do servidor
+// Escuta o evento de falha crítica do servidor
 socket.on('erro_sensor', (dados) => {
     spanMensagemErro.innerText = dados.mensagem;
     divAlerta.style.display = 'block';
@@ -53,7 +58,7 @@ socket.on('erro_sensor', (dados) => {
 });
 
 socket.on('nova_temperatura', (dados) => {
-    // INSERÇÃO: Oculta o alerta se o sensor for reconectado e voltar a funcionar
+    // Oculta o alerta se o sensor for reconectado e voltar a funcionar
     divAlerta.style.display = 'none';
 
     const tempFormatada = parseFloat(dados.valor.toFixed(1));

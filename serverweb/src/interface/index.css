@@ -1,7 +1,7 @@
 body {
     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-    background-color: #f4f7f6;
-    color: #333;
+    background-color: #121212; /* Fundo escuro */
+    color: #e0e0e0; /* Texto claro */
     text-align: center;
     margin: 0;
     padding: 20px;
@@ -10,20 +10,30 @@ body {
 .container {
     max-width: 900px;
     margin: 0 auto;
-    background: white;
+    background: #1e1e1e; /* Container escuro */
     padding: 20px;
     border-radius: 10px;
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.5); /* Sombra mais densa */
+}
+
+/* Organiza o título e o botão lado a lado no topo */
+.header-actions {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
 }
 
 h1 {
-    margin-top: 0;
+    margin: 0;
+    text-align: left;
 }
 
 .temp-atual {
     font-size: 3em;
     font-weight: bold;
-    color: #e74c3c;
+    color: #ff6b6b; /* Vermelho levemente mais claro para dar contraste no preto */
     margin: 20px 0;
 }
 
@@ -37,14 +47,21 @@ h1 {
     display: inline-block;
     background-color: #27ae60;
     color: white;
-    padding: 12px 24px;
+    padding: 10px 20px;
     text-decoration: none;
     font-weight: bold;
     border-radius: 5px;
-    margin-top: 10px;
+    border: none;
+    cursor: pointer;
     transition: background-color 0.3s;
 }
 
 .btn-download:hover {
     background-color: #219150;
+}
+
+hr {
+    border: 0;
+    border-top: 1px solid #333; /* Separador compatível com tema escuro */
+    margin: 30px 0;
 }
