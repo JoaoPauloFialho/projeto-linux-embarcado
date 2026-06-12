@@ -7,28 +7,27 @@
     part-number = "bb-w1-p89";
     version = "00A0";
 
-    /* Fragmento 0: Configuração de hardware do pino P8_9 */
+    /* Fragmento 0: Configuração de hardware do pino P8_9 (Mantido igual) */
     fragment@0 {
         target = <&am33xx_pinmux>;
         __overlay__ {
             w1_pins: pinmux_w1_pins {
                 pinctrl-single,pins = <
-                    0x09c 0x37 /* P8_9: Offset 0x09c | RX Ativo | Pull Interno Desativado | Modo 7 (GPIO) */
+                    0x09c 0x37
                 >;
             };
         };
     };
 
-    /* Fragmento 1: Instanciação do driver w1-gpio */
+    /* Fragmento 1: Instanciação do driver w1-gpio anexado ao OCP */
     fragment@1 {
-        target-path = "/";
+        target = <&ocp>; /* Mudança crítica: Anexando ao barramento físico */
         __overlay__ {
-            onewire {
+            onewire@0 {  /* Adicionado identificador de unidade */
                 compatible = "w1-gpio";
                 pinctrl-names = "default";
                 pinctrl-0 = <&w1_pins>;
                 
-                /* Mapeamento: Banco físico GPIO 2, Linha 5, Flag 0 (Active High) */
                 gpios = <&gpio2 5 0>; 
                 
                 status = "okay";
