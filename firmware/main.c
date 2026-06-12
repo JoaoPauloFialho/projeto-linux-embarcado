@@ -57,7 +57,7 @@ void rotina_de_limpeza(int sinal) {
     if (request_buzzer) gpiod_line_request_release(request_buzzer);
     if (chip_buzzer) gpiod_chip_close(chip_buzzer);
     
-    tft_limpar_tela();
+    // tft_limpar_tela();
     ds18b20_liberar_hardware();
 
     exit(EXIT_SUCCESS);
@@ -301,7 +301,7 @@ int main(void) {
         int estado_botao = gpiod_line_request_get_value(request_botao, offset_botao);
         if (estado_botao == 0 && estado_botao_anterior == 1) {
             tela_atual = !tela_atual; 
-            tft_limpar_tela();
+            // tft_limpar_tela();
         }
         estado_botao_anterior = estado_botao;
 
@@ -309,16 +309,16 @@ int main(void) {
         if (tela_atual == 0) {
             // TELA 1: Só atualiza os gráficos se o valor mudar (evita flicker)
             if (temp_atual != last_temp || limite_temp != last_limit || tela_atual != last_tela) {
-                tft_exibir_tela_principal(temp_atual, limite_temp);
+                // tft_exibir_tela_principal(temp_atual, limite_temp);
                 last_temp = temp_atual;
                 last_limit = limite_temp;
             }
         } else {
             // TELA 2: Busca o IP e SD apenas ao mudar de tela
             if (tela_atual != last_tela) {
-                obter_ip_beaglebone(ip_buffer);
-                obter_espaco_sdcard(sd_buffer);
-                tft_exibir_tela_rede(ip_buffer, sd_buffer);
+                // obter_ip_beaglebone(ip_buffer);
+                // obter_espaco_sdcard(sd_buffer);
+                // tft_exibir_tela_rede(ip_buffer, sd_buffer);
             }
         }
         
