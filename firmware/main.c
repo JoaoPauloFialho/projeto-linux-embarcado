@@ -323,7 +323,7 @@ int main(void) {
         if (tela_atual == 0) {
             if (temp_atual != last_temp || limite_temp != last_limit || tela_atual != last_tela) {
                 ssd1306_limpar_buffer();
-                ssd1306_desenhar_texto(0, 0, "--- DATALOGGER ---");
+                ssd1306_desenhar_texto(0, 0, "    DATALOGGER    ");
                 
                 if (temp_atual <= -999.0f) {
                     ssd1306_desenhar_texto(0, 3, "ALERTA CRITICO:");
