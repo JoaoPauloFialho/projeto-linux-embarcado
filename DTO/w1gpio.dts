@@ -4,23 +4,22 @@
 / {
     compatible = "ti,beaglebone", "ti,beaglebone-black";
 
-    /* Identificação do metadado do overlay */
-    part-number = "bb-w1-p822";
+    part-number = "bb-w1-p89";
     version = "00A0";
 
-    /* Fragmento 1: Configuração do Pinmuxing */
+    /* Fragmento 0: Configuração de hardware do pino P8_9 */
     fragment@0 {
         target = <&am33xx_pinmux>;
         __overlay__ {
             w1_pins: pinmux_w1_pins {
                 pinctrl-single,pins = <
-                    0x02c 0x37 /* P8_22: RX Ativo | Pull-Up Interno | Modo 7 (GPIO) */
+                    0x09c 0x37 /* P8_9: Offset 0x09c | RX Ativo | Pull Interno Desativado | Modo 7 (GPIO) */
                 >;
             };
         };
     };
 
-    /* Fragmento 2: Instanciação do driver w1-gpio */
+    /* Fragmento 1: Instanciação do driver w1-gpio */
     fragment@1 {
         target-path = "/";
         __overlay__ {
@@ -29,8 +28,8 @@
                 pinctrl-names = "default";
                 pinctrl-0 = <&w1_pins>;
                 
-                /* Mapeamento: Banco GPIO 1, Linha 5, Flag 0 (Active High) */
-                gpios = <&gpio1 5 0>; 
+                /* Mapeamento: Banco físico GPIO 2, Linha 5, Flag 0 (Active High) */
+                gpios = <&gpio2 5 0>; 
                 
                 status = "okay";
             };
