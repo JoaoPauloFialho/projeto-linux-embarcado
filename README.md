@@ -1,1 +1,1 @@
-# projeto-linux-embarcado
+Quando for rodar o objeto compilado `./main` usar `sudo`
