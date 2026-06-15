@@ -40,7 +40,7 @@
 // #define ARQUIVO_LOG "Log_temperatura.csv"
 
 //Nome do arquivo de temperatuda
-#define ARQUIVO_LOG "/mnt/flash_interna/log_data/log_temperatura.csv"
+#define ARQUIVO_LOG "/mnt/flash_interna/log_temperatura.csv"
 
 // Configuração do Inotify
 #define ALARME_CONF_PATH "/home/edujoao/projeto-linux-embarcado/firmware/alarme.conf"
