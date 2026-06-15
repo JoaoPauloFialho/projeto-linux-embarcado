@@ -82,8 +82,7 @@ float ds18b20_ler_temperatura(void) {
         if (pos_t != NULL) {
             long temp_raw = atol(pos_t + 2);
             temperatura = (float)temp_raw / 1000.0f;
-            // Descomente a linha abaixo se quiser ver todas as leituras brutas
-            // printf("[DS18B20] Leitura bruta bem-sucedida: %.3f C\n", temperatura);
+            printf("[DS18B20] Leitura bruta bem-sucedida: %.3f C\n", temperatura);
         }
     }
 

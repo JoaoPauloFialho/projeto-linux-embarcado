@@ -42,10 +42,6 @@
 // Configuração do Inotify
 #define ALARME_CONF_PATH "/home/edujoao/projeto-linux-embarcado/firmware/alarme.conf"
 
-// =================================================================
-// VARIÁVEIS GLOBAIS
-// =================================================================
-
 struct gpiod_chip *chip_botao = NULL;
 struct gpiod_line_request *request_botao = NULL;
 struct gpiod_chip *chip_buzzer = NULL;
@@ -73,10 +69,7 @@ void rotina_de_limpeza(int sinal) {
     exit(EXIT_SUCCESS);
 }
 
-// =================================================================
-// THREAD DO SENSOR e save em csv
-// =================================================================
-
+// Thread do sensor
 void inicializar_armazenamento() {
     struct stat st = {0};
 
@@ -95,13 +88,11 @@ void inicializar_armazenamento() {
     if (mount_status == 0) {
         printf("[INFO] Flash interna montada com sucesso.\n");
     } else {
-        // Se a montagem falhou, analisamos o código do erro (errno)
         if (errno == EBUSY) {
-            // EBUSY significa que o disco já está montado. Está tudo certo.
+            // EBUSY significa que o disco já está montado.
             printf("[INFO] A flash interna ja estava montada.\n");
         } 
         else if (errno == EINVAL || errno == EIO) {
-            // EINVAL geralmente indica que a partição não possui formatação EXT4 válida.
             printf("[AVISO] Sistema de arquivos ausente ou invalido. Formatando em EXT4...\n");
             
             // A flag -F força a formatação sem pedir confirmação interativa do usuário
@@ -122,7 +113,6 @@ void inicializar_armazenamento() {
             }
         } 
         else {
-            // Outros erros (como disco não encontrado)
             perror("[ERRO] Falha desconhecida ao acessar o disco");
             return;
         }
@@ -140,8 +130,7 @@ void salvar_em_csv(float temperatura) {
     FILE *arquivo;
     int precisa_cabecalho = 0;
 
-    // 1. Verifica se o arquivo já existe. Se não existir (access retorna -1),
-    // marcamos a flag para escrever o cabeçalho do CSV na primeira linha.
+    // 1. Marcamos a flag para escrever o cabeçalho do CSV na primeira linha.
     if (access(ARQUIVO_LOG, F_OK) == -1) {
         precisa_cabecalho = 1;
     }
@@ -228,7 +217,7 @@ void *thread_sensor_func(void *arg) {
 
     while (1) {
         temp_atual = ds18b20_ler_temperatura();
-        // printf("tSensor thread: temp_atual=%.2f\n", temp_atual); // Comentado opcionalmente se flodar muito o terminal
+        // printf("tSensor thread: temp_atual=%.2f\n", temp_atual);
 
         if (temp_atual == -1000.0f) {
             fprintf(stderr, "[Sensor] Falha temporaria de leitura ou CRC. Ignorando amostra.\n");
@@ -241,10 +230,6 @@ void *thread_sensor_func(void *arg) {
 
     return NULL;
 }
-
-// =================================================================
-// Buzzer e Inotify
-// =================================================================
 
 // Função para ler o arquivo e gravar na variável global
 void atualizar_limite_temp() {
@@ -286,7 +271,7 @@ void *thread_inotify_func(void *arg) {
 
     // Loop infinito aguardando modificações
     while (1) {
-        // A função read() fica bloqueada aqui, consumindo 0% de CPU, até o arquivo mudar
+        // A função read() fica bloqueada aqui até o arquivo mudar
         int length = read(fd, buffer, sizeof(buffer));
         if (length > 0) {
             // Dispara a leitura se o evento ocorreu
@@ -335,7 +320,7 @@ void *thread_buzzer_func(void *arg) {
             usleep(200000); 
         } else {
             gpiod_line_request_set_value(request_buzzer, offset_buzzer, 0);
-            usleep(100000); // Pausa leve para não sobrecarregar a CPU
+            usleep(100000);
         }
     }
     return NULL;
