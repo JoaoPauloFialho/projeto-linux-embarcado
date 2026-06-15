@@ -19,7 +19,7 @@
 #define LINHA_BOTAO 2
 
 // Pinos SPI do Display configurados via GPIO (Chip 2 corresponde ao barramento de pinos que inclui P8_9 e P8_10)
-#define DISPLAY_CHIP_PATH "/dev/gpiochip2"
+#define DISPLAY_CHIP_PATH "/dev/gpiochip1"
 #define LINHA_RES 5 // p8_9 (GPIO 69 = gpiochip2, linha 5)
 #define LINHA_DC 4  // p8_10 (GPIO 68 = gpiochip2, linha 4)
 #define SPI_DEVICE "/dev/spidev0.0"
@@ -253,7 +253,7 @@ void *thread_buzzer_func(void *arg) {
     // Loop infinito da thread verificando a variável global
     for (;;) {
         // Inserção: Alarme soa se exceder o limite OU se o sensor for desconectado
-        printf("Buzzer thread: temp_atual=%.2f, limite_temp=%.2f\n", temp_atual, limite_temp);
+        // printf("Buzzer thread: temp_atual=%.2f, limite_temp=%.2f\n", temp_atual, limite_temp);
         if (temp_atual >= limite_temp || temp_atual <= -999.0f) {
             gpiod_line_request_set_value(request_buzzer, offset_buzzer, 1);
             usleep(200000); 
