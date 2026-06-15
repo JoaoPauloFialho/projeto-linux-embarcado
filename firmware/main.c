@@ -11,7 +11,9 @@
 #include <ifaddrs.h>
 #include <arpa/inet.h>
 #include <sys/statvfs.h>
-
+#include <sys/stat.h>
+#include <sys/mount.h>
+#include <errno.h>
 #include "ds18b20.h"
 #include "gmt130_spi.h" // Inserção: substituido ssd1306_i2c pela lib SPI do GMT130
 
@@ -20,6 +22,9 @@
 #define LINHA_BOTAO 2
 //p8_9 RES botao
 //p8_10 DC
+
+#define DISCO_EMMC "/dev/mmcblk1p1"
+#define PONTO_MONTAGEM "/mnt/flash_interna"
 
 // Inserção: Pinos SPI do Display configurados via GPIO
 #define DISPLAY_CHIP_PATH "/dev/gpiochip2"
@@ -35,7 +40,7 @@
 // #define ARQUIVO_LOG "Log_temperatura.csv"
 
 //Nome do arquivo de temperatuda
-#define ARQUIVO_LOG "/mnt/sdcard/Log_temperatura.csv"
+#define ARQUIVO_LOG "/mnt/flash_interna/log_data/log_temperatura.csv"
 
 // Configuração do Inotify
 #define ALARME_CONF_PATH "/home/edujoao/projeto-linux-embarcado/firmware/alarme.conf"
@@ -75,6 +80,65 @@ void rotina_de_limpeza(int sinal) {
 // THREAD DO SENSOR e save em csv
 // =================================================================
 
+void inicializar_armazenamento() {
+    struct stat st = {0};
+
+    // 1. Verifica se a pasta de montagem existe. Se não, cria.
+    if (stat(PONTO_MONTAGEM, &st) == -1) {
+        if (mkdir(PONTO_MONTAGEM, 0777) != 0) {
+            perror("[ERRO] Falha ao criar ponto de montagem");
+            return;
+        }
+        printf("[INFO] Ponto de montagem criado.\n");
+    }
+
+    // 2. Tenta montar a partição (Fonte, Destino, Sistema de Arquivos, Flags, Dados)
+    int mount_status = mount(DISCO_EMMC, PONTO_MONTAGEM, "ext4", 0, NULL);
+
+    if (mount_status == 0) {
+        printf("[INFO] Flash interna montada com sucesso.\n");
+    } else {
+        // Se a montagem falhou, analisamos o código do erro (errno)
+        if (errno == EBUSY) {
+            // EBUSY significa que o disco já está montado. Está tudo certo.
+            printf("[INFO] A flash interna ja estava montada.\n");
+        } 
+        else if (errno == EINVAL || errno == EIO) {
+            // EINVAL geralmente indica que a partição não possui formatação EXT4 válida.
+            printf("[AVISO] Sistema de arquivos ausente ou invalido. Formatando em EXT4...\n");
+            
+            // A flag -F força a formatação sem pedir confirmação interativa do usuário
+            int sys_status = system("mkfs.ext4 -F " DISCO_EMMC);
+            if (sys_status != 0) {
+                printf("[ERRO] Falha ao executar a formatacao do disco.\n");
+                return;
+            }
+
+            printf("[INFO] Formatacao concluida. Montando a unidade...\n");
+            
+            // Tenta montar novamente após formatar
+            if (mount(DISCO_EMMC, PONTO_MONTAGEM, "ext4", 0, NULL) == 0) {
+                printf("[INFO] Flash montada com sucesso apos formatacao.\n");
+            } else {
+                perror("[ERRO] Falha critica ao montar apos a formatacao");
+                return;
+            }
+        } 
+        else {
+            // Outros erros (como disco não encontrado)
+            perror("[ERRO] Falha desconhecida ao acessar o disco");
+            return;
+        }
+    }
+
+    // 3. Garante as permissões 777 para que a função salvar_em_csv() possa operar sem bloqueios
+    if (chmod(PONTO_MONTAGEM, 0777) != 0) {
+        perror("[AVISO] Nao foi possivel aplicar as permissoes finais na pasta");
+    } else {
+        printf("[INFO] Permissoes do disco configuradas.\n");
+    }
+}
+
 void salvar_em_csv(float temperatura) {
     FILE *arquivo;
     int precisa_cabecalho = 0;
@@ -109,7 +173,7 @@ void salvar_em_csv(float temperatura) {
             tm_info.tm_hour, tm_info.tm_min, tm_info.tm_sec,
             temperatura);
 
-    // 6. Força o Linux a ejetar a RAM e gravar fisicamente no disco via SPI
+    // 6. Força o Linux a ejetar a RAM e gravar fisicamente no disco via eMMC
     fflush(arquivo);
     fsync(fileno(arquivo));
     fclose(arquivo);
@@ -132,13 +196,20 @@ void obter_ip_beaglebone(char *ip_buffer) {
 
 void obter_espaco_sdcard(char *espaco_buffer) {
     struct statvfs stat;
-    if (statvfs("/mnt/sdcard", &stat) != 0) {
-        strcpy(espaco_buffer, "SD Desconectado");
+    
+    // Aponta para o ponto de montagem da flash interna
+    if (statvfs("/mnt/flash_interna", &stat) != 0) {
+        strcpy(espaco_buffer, "Flash Inacessivel");
         return;
     }
+    
     double livres_mb = (double)(stat.f_bavail * stat.f_frsize) / (1024.0 * 1024.0);
-    if (livres_mb >= 1024.0) snprintf(espaco_buffer, 32, "%.2f GB", livres_mb / 1024.0);
-    else snprintf(espaco_buffer, 32, "%.1f MB", livres_mb);
+    
+    if (livres_mb >= 1024.0) {
+        snprintf(espaco_buffer, 32, "%.2f GB", livres_mb / 1024.0);
+    } else {
+        snprintf(espaco_buffer, 32, "%.1f MB", livres_mb);
+    }
 }
 
 /**
@@ -277,6 +348,9 @@ int main(void) {
     unsigned int offset_botao = LINHA_BOTAO;
 
     signal(SIGINT, rotina_de_limpeza);
+
+    //inicia o armazenamento interno.
+    inicializar_armazenamento();
 
     // Inserção: Inicializa o display no barramento SPI usando libgpiod
     printf("[DEBUG MAIN] Iniciando configuracao do barramento SPI e GPIO do display...\n");
