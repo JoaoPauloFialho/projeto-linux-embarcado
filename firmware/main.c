@@ -53,8 +53,8 @@ struct gpiod_line_request *request_buzzer = NULL;
 
 // Variáveis globais de controle
 volatile int alarme_ativo = 0; 
-volatile float limite_temp = 0.0;
-volatile float temp_atual = 100.0; // Valor simulado para testes
+volatile float limite_temp = 9999.0;
+volatile float temp_atual = 0.0; // Valor simulado para testes
 
 void rotina_de_limpeza(int sinal) {
     printf("\n[DEBUG MAIN] [Sinal recebido] Desligando hardware e liberando os pinos...\n");
