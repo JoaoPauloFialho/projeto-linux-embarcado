@@ -11,13 +11,18 @@
 #include <ifaddrs.h>
 #include <arpa/inet.h>
 #include <sys/statvfs.h>
-
-#include "ds18b20.h"
-#include "ssd1306_i2c.h"
+#include "ds18b20.h" // Inserção: Biblioteca para o sensor de temperatura DS18B20
+#include "gmt130_spi.h" // Inserção: Nova biblioteca do display SPI
 
 // Configurações do Botão
 #define BOTAO_CHIP_PATH "/dev/gpiochip1"
 #define LINHA_BOTAO 2
+
+// Pinos SPI do Display configurados via GPIO (Chip 2 corresponde ao barramento de pinos que inclui P8_9 e P8_10)
+#define DISPLAY_CHIP_PATH "/dev/gpiochip2"
+#define LINHA_RES 5 // p8_9 (GPIO 69 = gpiochip2, linha 5)
+#define LINHA_DC 4  // p8_10 (GPIO 68 = gpiochip2, linha 4)
+#define SPI_DEVICE "/dev/spidev0.0"
 
 // Configurações do Buzzer
 #define BUZZER_CHIP_PATH "/dev/gpiochip1"
@@ -57,7 +62,7 @@ void rotina_de_limpeza(int sinal) {
     if (request_buzzer) gpiod_line_request_release(request_buzzer);
     if (chip_buzzer) gpiod_chip_close(chip_buzzer);
     
-    ssd1306_encerrar(); // Inserção: Limpa e desliga o display I2C no encerramento
+    gmt130_encerrar(); // Inserção: Limpa e desliga o display SPI no encerramento
     ds18b20_liberar_hardware();
 
     exit(EXIT_SUCCESS);
@@ -267,8 +272,12 @@ int main(void) {
 
     signal(SIGINT, rotina_de_limpeza);
 
-    // Inserção: Inicializa o display no barramento I2C
-    ssd1306_inicializar("/dev/i2c-2");
+    // Inserção: Inicializa o display GMT130 no barramento SPI usando libgpiod
+    if (gmt130_inicializar(SPI_DEVICE, DISPLAY_CHIP_PATH, LINHA_RES, LINHA_DC) != 0) {
+        fprintf(stderr, "[Erro] Falha ao inicializar o display SPI.\n");
+        return EXIT_FAILURE;
+    }
+    gmt130_limpar_tela(GMT130_PRETO); // Garante que a tela inicia apagada
 
     // 1. INICIA A THREAD DO INOTIFY (MONITORAMENTO DO ARQUIVO)
     pthread_t thread_inotify;
@@ -302,7 +311,7 @@ int main(void) {
     printf("Sistema iniciado! Testando threads...\n");
     int estado_botao_anterior = 1;  
     
-    // Inserção: Variáveis necessárias para a lógica do display
+    // Variáveis necessárias para a lógica do display
     int tela_atual = 0;             
     float last_temp = -9999.0;      
     float last_limit = -9999.0;     
@@ -319,24 +328,24 @@ int main(void) {
         }
         estado_botao_anterior = estado_botao;
 
-        // Inserção: Bloco de lógica do display
+        // Bloco de renderização gráfica SPI
         if (tela_atual == 0) {
             if (temp_atual != last_temp || limite_temp != last_limit || tela_atual != last_tela) {
-                ssd1306_limpar_buffer();
-                ssd1306_desenhar_texto(0, 0, "    DATALOGGER    ");
+                gmt130_limpar_tela(GMT130_PRETO);
+                
+                // Coordenadas em X e Y reais (ajustadas para visibilidade em matriz de pixels)
+                gmt130_desenhar_texto(10, 20, "DATALOGGER", GMT130_VERDE, GMT130_PRETO);
                 
                 if (temp_atual <= -999.0f) {
-                    ssd1306_desenhar_texto(0, 3, "ALERTA CRITICO:");
-                    ssd1306_desenhar_texto(0, 5, ">> SENSOR OFF <<");
+                    gmt130_desenhar_texto(10, 60, "ALERTA CRITICO:", GMT130_VERMELHO, GMT130_PRETO);
+                    gmt130_desenhar_texto(10, 80, ">> SENSOR OFF <<", GMT130_VERMELHO, GMT130_PRETO);
                 } else {
                     snprintf(linha_buf, sizeof(linha_buf), "Temp:   %.1f C", temp_atual);
-                    ssd1306_desenhar_texto(0, 3, linha_buf);
+                    gmt130_desenhar_texto(10, 60, linha_buf, GMT130_BRANCO, GMT130_PRETO);
                     
                     snprintf(linha_buf, sizeof(linha_buf), "Alarme: %.1f C", limite_temp);
-                    ssd1306_desenhar_texto(0, 5, linha_buf);
+                    gmt130_desenhar_texto(10, 90, linha_buf, GMT130_BRANCO, GMT130_PRETO);
                 }
-                
-                ssd1306_atualizar_tela();
                 
                 last_temp = temp_atual;
                 last_limit = limite_temp;
@@ -347,16 +356,14 @@ int main(void) {
                 obter_ip_beaglebone(ip_buffer);
                 obter_espaco_sdcard(sd_buffer);
                 
-                ssd1306_limpar_buffer();
-                ssd1306_desenhar_texto(0, 0, "--- SISTEMA ---");
+                gmt130_limpar_tela(GMT130_PRETO);
+                gmt130_desenhar_texto(10, 20, "--- SISTEMA ---", GMT130_VERDE, GMT130_PRETO);
                 
                 snprintf(linha_buf, sizeof(linha_buf), "IP: %s", ip_buffer);
-                ssd1306_desenhar_texto(0, 3, linha_buf);
+                gmt130_desenhar_texto(10, 60, linha_buf, GMT130_BRANCO, GMT130_PRETO);
                 
                 snprintf(linha_buf, sizeof(linha_buf), "SD: %s", sd_buffer);
-                ssd1306_desenhar_texto(0, 5, linha_buf);
-                
-                ssd1306_atualizar_tela();
+                gmt130_desenhar_texto(10, 90, linha_buf, GMT130_BRANCO, GMT130_PRETO);
                 
                 last_tela = tela_atual;
                 last_temp = -9999.0; // Força nova renderização ao voltar para a Tela 1
