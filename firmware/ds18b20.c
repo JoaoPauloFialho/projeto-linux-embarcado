@@ -22,9 +22,11 @@ int ds18b20_inicializar(void) {
     struct dirent *dirent;
     int sensor_encontrado = 0;
 
+    printf("[DS18B20] Iniciando busca no barramento 1-Wire em %s...\n", W1_BUS_PATH);
+
     dir = opendir(W1_BUS_PATH);
     if (dir == NULL) {
-        perror("[DS18B20] Erro ao abrir o diretorio do barramento");
+        perror("[DS18B20] Erro fatal: Nao foi possivel abrir o diretorio do barramento");
         return -1;
     }
 
@@ -39,11 +41,11 @@ int ds18b20_inicializar(void) {
     closedir(dir);
 
     if (!sensor_encontrado) {
-        printf("[DS18B20] Nenhum dispositivo detectado no barramento.\n");
+        printf("[DS18B20] Falha: Nenhum dispositivo detectado no barramento.\n");
         return -1;
     }
 
-    printf("[DS18B20] Dispositivo validado em: %s\n", sensor_path);
+    printf("[DS18B20] Sucesso: Dispositivo validado em: %s\n", sensor_path);
     return 0;
 }
 
@@ -55,11 +57,13 @@ float ds18b20_ler_temperatura(void) {
     int crc_valido = 0;
 
     if (sensor_path[0] == '\0') {
+        printf("[DS18B20] Erro: Caminho do sensor nao configurado.\n");
         return temperatura;
     }
 
     fp = fopen(sensor_path, "r");
     if (fp == NULL) {
+        printf("[DS18B20] Erro ao abrir o arquivo do sensor (pode ter sido desconectado).\n");
         return temperatura;
     }
 
@@ -67,6 +71,8 @@ float ds18b20_ler_temperatura(void) {
     if (fgets(buffer, sizeof(buffer), fp) != NULL) {
         if (strstr(buffer, "YES") != NULL) {
             crc_valido = 1;
+        } else {
+            printf("[DS18B20] Aviso: CRC invalido detectado na leitura.\n");
         }
     }
 
@@ -76,6 +82,8 @@ float ds18b20_ler_temperatura(void) {
         if (pos_t != NULL) {
             long temp_raw = atol(pos_t + 2);
             temperatura = (float)temp_raw / 1000.0f;
+            // Descomente a linha abaixo se quiser ver todas as leituras brutas
+            // printf("[DS18B20] Leitura bruta bem-sucedida: %.3f C\n", temperatura);
         }
     }
 
@@ -84,5 +92,6 @@ float ds18b20_ler_temperatura(void) {
 }
 
 void ds18b20_liberar_hardware(void) {
+    printf("[DS18B20] Liberando recursos do sensor.\n");
     sensor_path[0] = '\0';
 }

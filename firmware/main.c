@@ -11,17 +11,20 @@
 #include <ifaddrs.h>
 #include <arpa/inet.h>
 #include <sys/statvfs.h>
-#include "ds18b20.h" // Inserção: Biblioteca para o sensor de temperatura DS18B20
-#include "gmt130_spi.h" // Inserção: Nova biblioteca do display SPI
+
+#include "ds18b20.h"
+#include "gmt130_spi.h" // Inserção: substituido ssd1306_i2c pela lib SPI do GMT130
 
 // Configurações do Botão
 #define BOTAO_CHIP_PATH "/dev/gpiochip1"
 #define LINHA_BOTAO 2
+//p8_9 RES botao
+//p8_10 DC
 
-// Pinos SPI do Display configurados via GPIO (Chip 2 corresponde ao barramento de pinos que inclui P8_9 e P8_10)
-#define DISPLAY_CHIP_PATH "/dev/gpiochip1"
-#define LINHA_RES 5 // p8_9 (GPIO 69 = gpiochip2, linha 5)
-#define LINHA_DC 4  // p8_10 (GPIO 68 = gpiochip2, linha 4)
+// Inserção: Pinos SPI do Display configurados via GPIO
+#define DISPLAY_CHIP_PATH "/dev/gpiochip2"
+#define LINHA_RES 5 // Corresponde ao P8_9
+#define LINHA_DC 4  // Corresponde ao P8_10
 #define SPI_DEVICE "/dev/spidev0.0"
 
 // Configurações do Buzzer
@@ -52,7 +55,7 @@ volatile float limite_temp = 0.0;
 volatile float temp_atual = 100.0; // Valor simulado para testes
 
 void rotina_de_limpeza(int sinal) {
-    printf("\n[Sinal recebido] Desligando hardware e liberando os pinos...\n");
+    printf("\n[DEBUG MAIN] [Sinal recebido] Desligando hardware e liberando os pinos...\n");
     
     // Libera os recursos do Botão
     if (request_botao) gpiod_line_request_release(request_botao);
@@ -149,6 +152,7 @@ void obter_espaco_sdcard(char *espaco_buffer) {
  */
 void *thread_sensor_func(void *arg) {
 
+    printf("[DEBUG THREAD] Iniciando Thread do Sensor.\n");
     if (ds18b20_inicializar() != 0) {
         fprintf(stderr, "[Sensor] Falha fatal: Diretorio do barramento nao encontrado.\n");
         pthread_exit(NULL);
@@ -156,7 +160,7 @@ void *thread_sensor_func(void *arg) {
 
     while (1) {
         temp_atual = ds18b20_ler_temperatura();
-        printf("tSensor thread: temp_atual=%.2f\n", temp_atual);
+        // printf("tSensor thread: temp_atual=%.2f\n", temp_atual); // Comentado opcionalmente se flodar muito o terminal
 
         if (temp_atual == -1000.0f) {
             fprintf(stderr, "[Sensor] Falha temporaria de leitura ou CRC. Ignorando amostra.\n");
@@ -182,7 +186,7 @@ void atualizar_limite_temp() {
         // Lê o arquivo e tenta converter para float
         if (fscanf(file, "%f", &novo_limite) == 1) {
             limite_temp = novo_limite;
-            printf("[Inotify] alarme.conf alterado! Novo limite de temperatura: %.2f°C\n", limite_temp);
+            printf("[Inotify] alarme.conf alterado! Novo limite de temperatura: %.2f C\n", limite_temp);
         }
         fclose(file);
     } else {
@@ -192,6 +196,7 @@ void atualizar_limite_temp() {
 
 // Thread dedicada para monitorar o arquivo sem bloquear o resto do programa
 void *thread_inotify_func(void *arg) {
+    printf("[DEBUG THREAD] Iniciando Thread do Inotify.\n");
     int fd, wd;
     // Buffer alinhado necessário para estruturar os eventos do inotify
     char buffer[4096] __attribute__ ((aligned(__alignof__(struct inotify_event))));
@@ -228,6 +233,7 @@ void *thread_inotify_func(void *arg) {
 
 
 void *thread_buzzer_func(void *arg) {
+    printf("[DEBUG THREAD] Iniciando Thread do Buzzer.\n");
     unsigned int offset_buzzer = LINHA_BUZZER;
 
     // Inicializa o chip e o pino do buzzer como SAÍDA
@@ -272,11 +278,13 @@ int main(void) {
 
     signal(SIGINT, rotina_de_limpeza);
 
-    // Inserção: Inicializa o display GMT130 no barramento SPI usando libgpiod
+    // Inserção: Inicializa o display no barramento SPI usando libgpiod
+    printf("[DEBUG MAIN] Iniciando configuracao do barramento SPI e GPIO do display...\n");
     if (gmt130_inicializar(SPI_DEVICE, DISPLAY_CHIP_PATH, LINHA_RES, LINHA_DC) != 0) {
-        fprintf(stderr, "[Erro] Falha ao inicializar o display SPI.\n");
+        fprintf(stderr, "[Erro MAIN] Falha ao inicializar o display SPI.\n");
         return EXIT_FAILURE;
     }
+    printf("[DEBUG MAIN] Display inicializado. Apagando lixo de memoria da tela...\n");
     gmt130_limpar_tela(GMT130_PRETO); // Garante que a tela inicia apagada
 
     // 1. INICIA A THREAD DO INOTIFY (MONITORAMENTO DO ARQUIVO)
@@ -292,6 +300,7 @@ int main(void) {
     pthread_create(&thread_sensor, NULL, thread_sensor_func, NULL);
 
     // 4. CONFIGURA O BOTÃO COMO ENTRADA
+    printf("[DEBUG MAIN] Configurando pino do Botao de Tela...\n");
     chip_botao = gpiod_chip_open(BOTAO_CHIP_PATH);
     struct gpiod_line_settings *config_botao = gpiod_line_settings_new();
     gpiod_line_settings_set_direction(config_botao, GPIOD_LINE_DIRECTION_INPUT);
@@ -311,7 +320,7 @@ int main(void) {
     printf("Sistema iniciado! Testando threads...\n");
     int estado_botao_anterior = 1;  
     
-    // Variáveis necessárias para a lógica do display
+    // Inserção: Variáveis necessárias para a lógica do display
     int tela_atual = 0;             
     float last_temp = -9999.0;      
     float last_limit = -9999.0;     
@@ -320,20 +329,22 @@ int main(void) {
     char sd_buffer[32];             
     char linha_buf[32];             
 
+    printf("[DEBUG MAIN] Entrando no laco de repeticao infinito (Grafico)...\n");
     for(;;) {
         // Leitura do botão com detecção de borda (debounce)
         int estado_botao = gpiod_line_request_get_value(request_botao, offset_botao);
         if (estado_botao == 0 && estado_botao_anterior == 1) {
             tela_atual = !tela_atual;
+            printf("[DEBUG BOTAO] Tela alterada pelo usuario para a Tela %d\n", tela_atual);
         }
         estado_botao_anterior = estado_botao;
 
-        // Bloco de renderização gráfica SPI
+        // Inserção: Bloco de lógica do display
         if (tela_atual == 0) {
             if (temp_atual != last_temp || limite_temp != last_limit || tela_atual != last_tela) {
+                printf("[DEBUG DISPLAY] Enviando dados via SPI (Tela 0 - Temperatura)\n");
                 gmt130_limpar_tela(GMT130_PRETO);
                 
-                // Coordenadas em X e Y reais (ajustadas para visibilidade em matriz de pixels)
                 gmt130_desenhar_texto(10, 20, "DATALOGGER", GMT130_VERDE, GMT130_PRETO);
                 
                 if (temp_atual <= -999.0f) {
@@ -353,6 +364,7 @@ int main(void) {
             }
         } else {
             if (tela_atual != last_tela) {
+                printf("[DEBUG DISPLAY] Enviando dados via SPI (Tela 1 - Sistema)\n");
                 obter_ip_beaglebone(ip_buffer);
                 obter_espaco_sdcard(sd_buffer);
                 
