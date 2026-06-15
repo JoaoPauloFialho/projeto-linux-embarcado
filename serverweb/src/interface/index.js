@@ -90,28 +90,11 @@ sliderAlarme.addEventListener('change', (evento) => {
     socket.emit('atualizar_alarme', novoLimite);
 });
 
-
 document.getElementById('btnBaixarCsv').addEventListener('click', () => {
+    const linkDownload = document.createElement("a");
+    linkDownload.href = "/download-csv";
     
-    if (historicoCompleto.length === 0) {
-        alert("Aguarde. Nenhum dado de temperatura foi recebido ainda.");
-        return;
-    }
-
-    let conteudoCSV = "HORARIO,TEMPERATURA_C\n";
-
-    historicoCompleto.forEach(leitura => {
-        conteudoCSV += `${leitura.tempo},${leitura.valor}\n`;
-    });
-
-    const blob = new Blob([conteudoCSV], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-
-    const linkOculto = document.createElement("a");
-    linkOculto.setAttribute("href", url);
-    linkOculto.setAttribute("download", "Sessao_Monitoramento_BeagleBone.csv");
-    
-    document.body.appendChild(linkOculto);
-    linkOculto.click();
-    document.body.removeChild(linkOculto);
+    document.body.appendChild(linkDownload);
+    linkDownload.click();
+    document.body.removeChild(linkDownload);
 });

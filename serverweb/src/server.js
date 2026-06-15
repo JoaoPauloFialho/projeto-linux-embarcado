@@ -28,6 +28,19 @@ app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'interface', 'index.html'));
 });
 
+app.get('/download-csv', (req, res) => {
+    const caminhoCsv = '/mnt/flash_interna/log_temperatura.csv';
+    
+    res.download(caminhoCsv, 'Log_temperatura_BeagleBone.csv', (err) => {
+        if (err) {
+            console.error("Erro ao fazer o download do CSV da flash:", err);
+            if (!res.headersSent) {
+                res.status(404).send("Arquivo CSV ainda não foi gerado pelo sistema.");
+            }
+        }
+    });
+});
+
 async function lerTemperatura() {
     try {
         const sensorPath = '/sys/bus/w1/devices/28-000000b9f662/w1_slave';
